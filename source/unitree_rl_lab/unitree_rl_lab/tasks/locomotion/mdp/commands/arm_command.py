@@ -45,6 +45,9 @@ class UniformArmPoseCommand(CommandTerm):
         self._command[env_ids, 0].uniform_(lo_l, hi_l)
         self._command[env_ids, 1].uniform_(lo_r, hi_r)
 
+    def _update_metrics(self):
+        pass
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         pass
 
