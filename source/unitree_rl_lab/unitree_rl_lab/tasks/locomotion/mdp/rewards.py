@@ -209,20 +209,18 @@ def arm_pose_tracking(
     env: ManagerBasedRLEnv,
     command_name: str,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    std: float = 0.6,
+    std: float = 0.3,
 ) -> torch.Tensor:
-    """Reward tracking target shoulder_roll for left and right arm.
+    """Reward tracking target shoulder_pitch for left and right arm.
 
-    Command: [left_shoulder_roll_target, right_shoulder_roll_target]
-    Left  lifted = +1.57 rad (axis +X)
-    Right lifted = -1.57 rad (axis +X, range flipped)
+    Command: [left_shoulder_pitch_target, right_shoulder_pitch_target]
     Uses exponential kernel like velocity tracking rewards.
     """
     asset: Articulation = env.scene[asset_cfg.name]
     cmd = env.command_manager.get_command(command_name)  # (N, 2)
 
-    left_ids, _ = asset.find_joints("left_shoulder_roll_joint")
-    right_ids, _ = asset.find_joints("right_shoulder_roll_joint")
+    left_ids, _ = asset.find_joints("left_shoulder_pitch_joint")
+    right_ids, _ = asset.find_joints("right_shoulder_pitch_joint")
 
     left_pos = asset.data.joint_pos[:, left_ids[0]]
     right_pos = asset.data.joint_pos[:, right_ids[0]]

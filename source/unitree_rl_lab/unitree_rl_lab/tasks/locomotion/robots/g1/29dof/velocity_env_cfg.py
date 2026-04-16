@@ -147,24 +147,20 @@ class EventCfg:
         },
     )
 
-    reset_left_shoulder_roll = EventTerm(
+    reset_arm_joints = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["left_shoulder_roll_joint"]),
-            # default=0.25, target range [0.0, 1.57] → offset [-0.25, 1.32]
-            "position_range": (-0.25, 1.32),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
-
-    reset_right_shoulder_roll = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["right_shoulder_roll_joint"]),
-            # default=-0.25, target range [-1.57, 0.0] → offset [-1.32, 0.25]
-            "position_range": (-1.32, 0.25),
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_shoulder_pitch_joint",
+                    "left_shoulder_roll_joint",
+                    "right_shoulder_roll_joint",
+                ],
+            ),
+            # shoulder_pitch default=0.3 rad; offset [-0.3, 1.27] → range [0.0, 1.57] (fully down → 90 deg)
+            "position_range": (-0.3, 1.27),
             "velocity_range": (0.0, 0.0),
         },
     )
@@ -185,8 +181,8 @@ class CommandsCfg:
     arm_pose = mdp.UniformArmPoseCommandCfg(
         resampling_time_range=(5.0, 10.0),
         ranges=mdp.UniformArmPoseCommandCfg.Ranges(
-            left_shoulder_pitch=(0.0, 1.57),   # roll: 0=neutral, +1.57=lifted forward
-            right_shoulder_pitch=(-1.57, 0.0), # roll: 0=neutral, -1.57=lifted forward (flipped)
+            left_shoulder_pitch=(0.0, 1.57),   # fully down → 90 deg
+            right_shoulder_pitch=(0.0, 1.57),
         ),
     )
 
