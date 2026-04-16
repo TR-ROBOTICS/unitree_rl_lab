@@ -153,14 +153,10 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
-                joint_names=[
-                    ".*_shoulder_pitch_joint",
-                    "left_shoulder_roll_joint",
-                    "right_shoulder_roll_joint",
-                ],
+                joint_names=[".*_shoulder_pitch_joint"],
             ),
-            # shoulder_pitch default=0.3 rad; offset [-0.3, 1.27] → range [0.0, 1.57] (fully down → 90 deg)
-            "position_range": (-0.3, 1.27),
+            # shoulder_pitch default=0.3; offset [-2.3, -0.3] → range [-2.0, 0.0]
+            "position_range": (-2.3, -0.3),
             "velocity_range": (0.0, 0.0),
         },
     )
@@ -181,8 +177,8 @@ class CommandsCfg:
     arm_pose = mdp.UniformArmPoseCommandCfg(
         resampling_time_range=(5.0, 10.0),
         ranges=mdp.UniformArmPoseCommandCfg.Ranges(
-            left_shoulder_pitch=(0.0, 1.57),   # fully down → 90 deg
-            right_shoulder_pitch=(0.0, 1.57),
+            left_shoulder_pitch=(-2.0, 0.0),   # -2.0=lifted forward, 0.0=down
+            right_shoulder_pitch=(-2.0, 0.0),  # same convention both arms
         ),
     )
 

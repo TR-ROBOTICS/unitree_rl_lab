@@ -12,8 +12,8 @@ default_joint_pos: [-0.1, -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 0.3
 commands:
   arm_pose:
     ranges:
-      left_shoulder_pitch: [0.0, 1.57]
-      right_shoulder_pitch: [0.0, 1.57]
+      left_shoulder_pitch: [-2.0, 0.0]   # -2.0=lifted forward, 0.0=down
+      right_shoulder_pitch: [-2.0, 0.0]
   base_velocity:
     ranges:
       lin_vel_x: [-0.5, 1.0]
