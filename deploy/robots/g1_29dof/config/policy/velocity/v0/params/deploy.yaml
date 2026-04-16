@@ -10,6 +10,10 @@ default_joint_pos: [-0.1, -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 0.3
   0.3, -0.2, -0.2, 0.25, -0.25, 0.0, 0.0, 0.0, 0.0, 0.97, 0.97, 0.15, -0.15, 0.0,
   0.0, 0.0, 0.0]
 commands:
+  arm_pose:
+    ranges:
+      left_shoulder_pitch: [0.0, 1.57]
+      right_shoulder_pitch: [0.0, 1.57]
   base_velocity:
     ranges:
       lin_vel_x: [-0.5, 1.0]
@@ -43,6 +47,11 @@ observations:
     params: {command_name: base_velocity}
     clip: null
     scale: [1.0, 1.0, 1.0]
+    history_length: 5
+  arm_commands:
+    params: {command_name: arm_pose}
+    clip: null
+    scale: [1.0, 1.0]
     history_length: 5
   joint_pos_rel:
     params: {}
