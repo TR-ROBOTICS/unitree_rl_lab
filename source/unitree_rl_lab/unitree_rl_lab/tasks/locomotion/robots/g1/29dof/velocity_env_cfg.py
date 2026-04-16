@@ -159,8 +159,8 @@ class EventCfg:
                     "right_shoulder_roll_joint",
                 ],
             ),
-            # shoulder_pitch default=0.3 rad; offset [0, 1.27] → range [0.3, 1.57] (90 deg)
-            "position_range": (0.0, 1.27),
+            # shoulder_pitch default=0.3 rad; offset [-0.3, 1.27] → range [0.0, 1.57] (fully down → 90 deg)
+            "position_range": (-0.3, 1.27),
             "velocity_range": (0.0, 0.0),
         },
     )
@@ -177,6 +177,15 @@ class EventCfg:
 @configclass
 class CommandsCfg:
     """Command specifications for the MDP."""
+
+    arm_pose = mdp.UniformArmPoseCommandCfg(
+        asset_name="robot",
+        resampling_time_range=(5.0, 10.0),
+        ranges=mdp.UniformArmPoseCommandCfg.Ranges(
+            left_shoulder_pitch=(0.0, 1.57),   # fully down → 90 deg
+            right_shoulder_pitch=(0.0, 1.57),
+        ),
+    )
 
     base_velocity = mdp.UniformLevelVelocityCommandCfg(
         asset_name="robot",
@@ -215,6 +224,7 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, scale=0.2, noise=Unoise(n_min=-0.2, n_max=0.2))
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        arm_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "arm_pose"})
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-1.5, n_max=1.5))
         last_action = ObsTerm(func=mdp.last_action)
@@ -236,6 +246,7 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, scale=0.2)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        arm_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "arm_pose"})
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05)
         last_action = ObsTerm(func=mdp.last_action)
@@ -342,6 +353,13 @@ class RewardsCfg:
             "target_height": 0.1,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
         },
+    )
+
+    # -- arm pose tracking
+    arm_pose = RewTerm(
+        func=mdp.arm_pose_tracking,
+        weight=1.0,
+        params={"command_name": "arm_pose", "std": 0.6},
     )
 
     # -- other
