@@ -179,7 +179,6 @@ class CommandsCfg:
     """Command specifications for the MDP."""
 
     arm_pose = mdp.UniformArmPoseCommandCfg(
-        asset_name="robot",
         resampling_time_range=(5.0, 10.0),
         ranges=mdp.UniformArmPoseCommandCfg.Ranges(
             left_shoulder_pitch=(0.0, 1.57),   # fully down → 90 deg
