@@ -30,7 +30,7 @@ REGISTER_OBSERVATION(keyboard_velocity_commands)
     return cmd;
 }
 
-}
+
 
 // Arm pose command observation
 // LB + up   → lift left arm  (left_target  = 1.57 rad)
@@ -56,6 +56,8 @@ REGISTER_OBSERVATION(arm_commands)
 
     return std::vector<float>{left_target, right_target};
 }
+
+} // namespace isaaclab
 
 State_RLBase::State_RLBase(int state_mode, std::string state_string)
 : FSMState(state_mode, state_string) 
