@@ -45,14 +45,16 @@ REGISTER_OBSERVATION(arm_commands)
     static float left_target  = cfg["left_shoulder_pitch"][0].as<float>();
     static float right_target = cfg["right_shoulder_pitch"][0].as<float>();
 
+    // left: lift=+1.57 (index 1), lower=0.0 (index 0)
     if (joystick->LB.pressed && joystick->up.on_pressed)
         left_target = cfg["left_shoulder_pitch"][1].as<float>();
     if (joystick->LB.pressed && joystick->down.on_pressed)
         left_target = cfg["left_shoulder_pitch"][0].as<float>();
+    // right: lift=-1.57 (index 0), lower=0.0 (index 1)
     if (joystick->RB.pressed && joystick->up.on_pressed)
-        right_target = cfg["right_shoulder_pitch"][1].as<float>();
-    if (joystick->RB.pressed && joystick->down.on_pressed)
         right_target = cfg["right_shoulder_pitch"][0].as<float>();
+    if (joystick->RB.pressed && joystick->down.on_pressed)
+        right_target = cfg["right_shoulder_pitch"][1].as<float>();
 
     return std::vector<float>{left_target, right_target};
 }
