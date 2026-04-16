@@ -147,6 +147,24 @@ class EventCfg:
         },
     )
 
+    reset_arm_joints = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_shoulder_pitch_joint",
+                    "left_shoulder_roll_joint",
+                    "right_shoulder_roll_joint",
+                ],
+            ),
+            # shoulder_pitch default=0.3 rad; offset [0, 1.27] → range [0.3, 1.57] (90 deg)
+            "position_range": (0.0, 1.27),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
+
     # interval
     push_robot = EventTerm(
         func=mdp.push_by_setting_velocity,
