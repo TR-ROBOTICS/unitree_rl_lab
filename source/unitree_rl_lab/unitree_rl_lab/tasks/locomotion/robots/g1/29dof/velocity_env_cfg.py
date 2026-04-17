@@ -147,6 +147,20 @@ class EventCfg:
         },
     )
 
+    reset_arm_joints = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[".*_shoulder_pitch_joint"],
+            ),
+            # shoulder_pitch default=0.3; offset [-2.3, -0.3] → range [-2.0, 0.0]
+            "position_range": (-2.3, -0.3),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
+
     # interval
     push_robot = EventTerm(
         func=mdp.push_by_setting_velocity,
@@ -159,6 +173,14 @@ class EventCfg:
 @configclass
 class CommandsCfg:
     """Command specifications for the MDP."""
+
+    arm_pose = mdp.UniformArmPoseCommandCfg(
+        resampling_time_range=(5.0, 10.0),
+        ranges=mdp.UniformArmPoseCommandCfg.Ranges(
+            left_shoulder_pitch=(-2.0, 0.0),   # -2.0=lifted forward, 0.0=down
+            right_shoulder_pitch=(-2.0, 0.0),  # same convention both arms
+        ),
+    )
 
     base_velocity = mdp.UniformLevelVelocityCommandCfg(
         asset_name="robot",
@@ -197,6 +219,7 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, scale=0.2, noise=Unoise(n_min=-0.2, n_max=0.2))
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        arm_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "arm_pose"})
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-1.5, n_max=1.5))
         last_action = ObsTerm(func=mdp.last_action)
@@ -218,6 +241,7 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, scale=0.2)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        arm_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "arm_pose"})
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05)
         last_action = ObsTerm(func=mdp.last_action)
@@ -259,20 +283,20 @@ class RewardsCfg:
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-5.0)
     energy = RewTerm(func=mdp.energy, weight=-2e-5)
 
-    joint_deviation_arms = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.1,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[
-                    ".*_shoulder_.*_joint",
-                    ".*_elbow_joint",
-                    ".*_wrist_.*",
-                ],
-            )
-        },
-    )
+    # joint_deviation_arms = RewTerm(
+    #     func=mdp.joint_deviation_l1,
+    #     weight=-0.1,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg(
+    #             "robot",
+    #             joint_names=[
+    #                 ".*_shoulder_.*_joint",
+    #                 ".*_elbow_joint",
+    #                 ".*_wrist_.*",
+    #             ],
+    #         )
+    #     },
+    # )
     joint_deviation_waists = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-1,
@@ -326,6 +350,13 @@ class RewardsCfg:
         },
     )
 
+    # -- arm pose tracking
+    arm_pose = RewTerm(
+        func=mdp.arm_pose_tracking,
+        weight=1.0,
+        params={"command_name": "arm_pose", "std": 0.6},
+    )
+
     # -- other
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
@@ -359,7 +390,7 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: RobotSceneCfg = RobotSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: RobotSceneCfg = RobotSceneCfg(num_envs=2**13, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
