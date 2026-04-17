@@ -46,14 +46,22 @@ REGISTER_OBSERVATION(arm_commands)
     static float right_target = cfg["right_shoulder_pitch"][0].as<float>();
 
     // range[-2.0, 0.0]: index[0]=-2.0=lifted, index[1]=0.0=down
-    if (joystick->LB.pressed && joystick->up.on_pressed)
+    if (joystick->LB.pressed && joystick->up.on_pressed) {
         left_target = cfg["left_shoulder_pitch"][0].as<float>();
-    if (joystick->LB.pressed && joystick->down.on_pressed)
+        spdlog::info("[arm_commands] LB+up -> left_target={}", left_target);
+    }
+    if (joystick->LB.pressed && joystick->down.on_pressed) {
         left_target = cfg["left_shoulder_pitch"][1].as<float>();
-    if (joystick->RB.pressed && joystick->up.on_pressed)
+        spdlog::info("[arm_commands] LB+down -> left_target={}", left_target);
+    }
+    if (joystick->RB.pressed && joystick->up.on_pressed) {
         right_target = cfg["right_shoulder_pitch"][0].as<float>();
-    if (joystick->RB.pressed && joystick->down.on_pressed)
+        spdlog::info("[arm_commands] RB+up -> right_target={}", right_target);
+    }
+    if (joystick->RB.pressed && joystick->down.on_pressed) {
         right_target = cfg["right_shoulder_pitch"][1].as<float>();
+        spdlog::info("[arm_commands] RB+down -> right_target={}", right_target);
+    }
 
     return std::vector<float>{left_target, right_target};
 }
