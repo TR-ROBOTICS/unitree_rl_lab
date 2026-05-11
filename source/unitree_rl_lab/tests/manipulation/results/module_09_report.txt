@@ -1,0 +1,11 @@
+Module #09 — Module #09 test results
+Run at : 2026-05-11T16:21:17
+Status : PASS
+Total  : 5  Passed: 5  Failed: 0
+
+--- Results ---
+  ✓ tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_list_envs_exits_cleanly
+  ✓ tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_task_id_present
+  ✓ tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_entry_point_correct
+  ✓ tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_config_entry_point_correct
+  ✓ tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_gym_register_importable
