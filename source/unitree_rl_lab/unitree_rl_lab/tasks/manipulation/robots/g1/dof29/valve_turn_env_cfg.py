@@ -1,4 +1,4 @@
-"""Valve-turn task config — G1 29-DoF, Stage 1 skeleton.
+"""Valve-turn task config — G1 29-DoF, Stage 1.
 
 RL spec ref: CONTEXT.md §RL spec
 PRD ref:     docs/prd/IsaacLab-task.md
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pathlib
 
+import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -21,10 +22,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import check_file_path
-
-import isaaclab.envs.mdp as base_mdp
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
 
 from unitree_rl_lab.assets.robots.unitree import UNITREE_G1_29DOF_CFG as ROBOT_CFG
 
@@ -54,20 +52,29 @@ _VALVE_RIG_USD: str = str(_ASSETS_DIR / "valve_rig.usd")
 class ValveTurnSceneCfg(InteractiveSceneCfg):
     """Scene: fixed-base G1 + valve rig at (0.6, 0, 1.2)."""
 
-    # Ground plane — simple flat surface; no terrain generator needed
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(),
     )
 
-    # G1 robot — base welded to world via fix_base=True on the ArticulationRootProperties
+    # G1 robot — fix_root_link applied in ValveTurnEnvCfg.__post_init__
     robot: ArticulationCfg = ROBOT_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0),
-            joint_pos={},  # filled by pre-grasp event at reset
+            pos=(0.0, 0.0, 0.793),  # pelvis height ~0.793 m → standing pose
+            joint_pos={
+                ".*_hip_pitch_joint": -0.1,
+                ".*_knee_joint": 0.3,
+                ".*_ankle_pitch_joint": -0.2,
+                ".*_shoulder_pitch_joint": 0.3,
+                "left_shoulder_roll_joint": 0.25,
+                "right_shoulder_roll_joint": -0.25,
+                ".*_elbow_joint": 0.97,
+                "left_wrist_roll_joint": 0.15,
+                "right_wrist_roll_joint": -0.15,
+            },
+            joint_vel={".*": 0.0},
         ),
-        actuators=ROBOT_CFG.actuators,
     )
 
     # Valve rig — separate articulation; handwheel RevoluteJoint is passive.
@@ -79,10 +86,11 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
             pos=(0.6, 0.0, 1.2),
             joint_pos={"RevoluteJoint": _THETA_MIN},
         ),
+        actuators={},  # RevoluteJoint is passive — no actuator needed; field must not be MISSING
     )
 
-    # Wrist contact sensors — both wrists, filter on handwheel prim
-    # Exact prim name confirmed after USD inspection (placeholder: .*wrist_yaw.*)
+    # Wrist contact sensors — both wrists, filtered on handwheel prim
+    # Exact prim name confirmed from USD inspection: handwheel
     wrist_contacts = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*wrist_yaw.*",
         history_length=3,
@@ -97,11 +105,71 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
         track_air_time=False,
     )
 
-    # Sky light
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(intensity=750.0, color=(0.9, 0.9, 1.0)),
     )
+
+
+# ---------------------------------------------------------------------------
+# Observations — minimum real obs: arm joint pos + vel (28d)
+# Full 45-d obs per PRD added when MDP module is complete.
+# ---------------------------------------------------------------------------
+
+@configclass
+class ObservationsCfg:
+    @configclass
+    class PolicyCfg(ObsGroup):
+        joint_pos = ObsTerm(
+            func=base_mdp.joint_pos_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[
+                ".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"
+            ])},
+        )
+        joint_vel = ObsTerm(
+            func=base_mdp.joint_vel_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[
+                ".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"
+            ])},
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+# ---------------------------------------------------------------------------
+# Actions — 14 arm-joint Δ-targets, scale ±0.1 rad (PRD §Action space)
+# ---------------------------------------------------------------------------
+
+@configclass
+class ActionsCfg:
+    arm = JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+        scale=0.1,
+        use_default_offset=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Terminations — time_out only; full set added with MDP module
+# ---------------------------------------------------------------------------
+
+@configclass
+class TerminationsCfg:
+    time_out = DoneTerm(func=base_mdp.time_out, time_out=True)
+
+
+# ---------------------------------------------------------------------------
+# Events — reset to default scene state each episode
+# ---------------------------------------------------------------------------
+
+@configclass
+class EventCfg:
+    reset_all = EventTerm(func=base_mdp.reset_scene_to_default, mode="reset")
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +178,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ValveTurnEnvCfg(ManagerBasedRLEnvCfg):
-    """G1-29DoF valve-turn env — Stage 1 skeleton.
+    """G1-29DoF valve-turn env — Stage 1.
 
     g(θ) coefficients are explicit configclass fields (PRD §g(θ) coefficient placement).
     Change only here when firmware mapping updates.
@@ -124,7 +192,7 @@ class ValveTurnEnvCfg(ManagerBasedRLEnvCfg):
     p_span: float = _P_SPAN         # PSI
     p_min: float = _P_MIN           # PSI
     p_max: float = _P_MAX           # PSI
-    eps_sim: float = _EPS_SIM       # PSI  convergence tolerance
+    eps_sim: float = _EPS_SIM       # PSI
 
     # -- operating envelope --------------------------------------------------
     theta_min: float = _THETA_MIN   # rad
@@ -134,20 +202,42 @@ class ValveTurnEnvCfg(ManagerBasedRLEnvCfg):
     p_des_range: tuple[float, float] = (100.0, 100.0)
 
     # -- success hold counter ------------------------------------------------
-    # K=10 vision frames × 5 policy steps/frame = 50 policy steps (CONTEXT.md §Success criterion)
+    # K=10 vision frames × 5 policy steps/frame = 50 steps (CONTEXT.md §Success criterion)
     hold_steps_required: int = 50
 
     # -- contact-loss timeout ------------------------------------------------
     # 2 s × 50 Hz = 100 policy steps (PRD §Terminations)
     contact_loss_steps_limit: int = 100
 
-    # -- scene ---------------------------------------------------------------
+    # -- managers ------------------------------------------------------------
     scene: ValveTurnSceneCfg = ValveTurnSceneCfg(num_envs=4096, env_spacing=2.5)
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
 
-    # -- sim -----------------------------------------------------------------
+    # deferred until MDP module is complete
+    rewards = None
+    curriculum = None
+    commands = None
+
     def __post_init__(self):
         super().__post_init__()
         self.sim.dt = 0.02           # 50 Hz policy rate
         self.sim.render_interval = 4
-        self.decimation = 4          # control at 50 Hz, physics at 200 Hz
+        self.decimation = 4          # physics at 200 Hz
         self.episode_length_s = 30.0
+
+        # Weld G1 base to world — fix_root_link on ArticulationRootPropertiesCfg
+        # Pattern from IsaacLab fixed_base_upper_body_ik_g1_env_cfg.py:85
+        self.scene.robot.spawn.articulation_props.fix_root_link = True
+
+
+@configclass
+class ValveTurnPlayEnvCfg(ValveTurnEnvCfg):
+    """Single-env play config — same as training but num_envs=1."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.num_envs = 1
+        self.scene.env_spacing = 2.5
