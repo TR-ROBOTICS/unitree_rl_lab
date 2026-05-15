@@ -348,9 +348,17 @@ class RewardsCfg:
         )},
     )
 
-    # Smoothness penalties — disabled Stage 1, re-enable Stage 3+
-    # action_rate = RewTerm(func=base_mdp.action_rate_l2, weight=-0.01)
-    # joint_vel   = RewTerm(func=base_mdp.joint_vel_l2,   weight=-0.001, ...)
+    # Smoothness penalties — low weights, safe now that explosions are terminated fast
+    action_rate = RewTerm(func=base_mdp.action_rate_l2, weight=-0.001)
+
+    joint_vel = RewTerm(
+        func=base_mdp.joint_vel_l2,
+        weight=-0.0001,
+        params={"asset_cfg": SceneEntityCfg(
+            "robot",
+            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+        )},
+    )
 
 
 # ---------------------------------------------------------------------------
