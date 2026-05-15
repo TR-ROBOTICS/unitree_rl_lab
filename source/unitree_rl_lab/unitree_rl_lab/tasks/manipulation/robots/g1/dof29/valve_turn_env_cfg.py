@@ -134,7 +134,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
                 "R_pinky_intermediate_joint":  0.5044,
                 "R_ring_proximal_joint":       0.9111,
                 "R_ring_intermediate_joint":   0.6877,
-                "R_thumb_proximal_yaw_joint":  1.3003,
+                "R_thumb_proximal_yaw_joint":  1.2990,  # clamped: limit is [-0.10, 1.30]
                 "R_thumb_proximal_pitch_joint":0.3089,
                 "R_thumb_intermediate_joint":  0.5917,
                 "R_thumb_distal_joint":        0.6440,
@@ -212,7 +212,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
                 damping=2.0,
                 armature=0.01,
             ),
-            # Inspire fingers — high stiffness freezes at init pose (pre-grip open flat).
+            # Inspire fingers — high stiffness freezes at init pose (pre-grip curl).
             # Not included in action space (arm only). Stage 2: add grasp curriculum.
             "hands": ImplicitActuatorCfg(
                 joint_names_expr=[
@@ -223,8 +223,8 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
                     ".*_thumb_proximal_yaw_joint", ".*_thumb_proximal_pitch_joint",
                     ".*_thumb_intermediate_joint", ".*_thumb_distal_joint",
                 ],
-                effort_limit=100.0,
-                velocity_limit=50.0,
+                effort_limit_sim=100.0,
+                velocity_limit_sim=50.0,
                 stiffness=1000.0,
                 damping=15.0,
                 armature=0.0,
