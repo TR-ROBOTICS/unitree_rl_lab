@@ -238,7 +238,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Valve",
         spawn=sim_utils.UsdFileCfg(usd_path=_VALVE_RIG_USD),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.6, 0.0, 0.55),
+            pos=(0.6, 0.0, 0.90),
             rot=(0.707, 0.0, 0.0, 0.707),   # +90° around Z: stem → world X, face toward robot
             joint_pos={"RevoluteJoint": _THETA_MIN},
         ),
