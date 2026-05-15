@@ -238,7 +238,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Valve",
         spawn=sim_utils.UsdFileCfg(usd_path=_VALVE_RIG_USD),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.65, 0.0, 0.90),  # tuned: reachable but no spawn overlap
+            pos=(0.60, 0.0, 0.90),  # tuned: reachable but no spawn overlap
             rot=(0.707, 0.0, 0.0, 0.707),   # +90° around Z: stem → world X, face toward robot
             joint_pos={"RevoluteJoint": _THETA_MIN},
         ),
@@ -325,7 +325,7 @@ class RewardsCfg:
     # until wheel already moves.
     wheel_vel = RewTerm(
         func=mdp.wheel_vel_toward_target,
-        weight=2.0,
+        weight=0.5,
         params={
             "p_des": _P_DES_STAGE1,
             "pressure_a": _G_THETA_A,
@@ -416,7 +416,7 @@ class ValveTurnEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 256
+        self.scene.num_envs = 128
         self.sim.dt = 0.02           # 50 Hz policy rate
         self.sim.render_interval = 4
         self.decimation = 4          # physics at 200 Hz
