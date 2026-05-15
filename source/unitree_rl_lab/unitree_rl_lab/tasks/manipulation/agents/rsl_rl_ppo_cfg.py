@@ -19,4 +19,4 @@ class ValveTurnPPORunnerCfg(BasePPORunnerCfg):
         super().__post_init__()
         # Stabilise value loss with bimodal contact reward distribution
         self.algorithm.value_loss_coef = 0.5      # was 1.0
-        self.algorithm.normalize_advantage = True  # normalise per-batch advantages
+        self.algorithm.normalize_advantage_per_mini_batch = True  # stabilise bimodal rewards
