@@ -1,7 +1,9 @@
-"""Valve-turn task config — G1 29-DoF, Stage 1.
+"""Valve-turn task config — G1 29-DoF + Inspire hands, Stage 1.
 
 RL spec ref: CONTEXT.md §RL spec
-PRD ref:     docs/prd/IsaacLab-task.md
+Robot USD:   /home/jescobars/unitree_model/G1/29dof_inspire/g1_29dof_with_inspire_rev_1_0.usd
+             58 CollisionAPI prims — full arm + Inspire finger coverage.
+             Verified 2026-05-15 via IsaacSim Script Editor.
 """
 
 from __future__ import annotations
@@ -21,8 +23,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 
-from unitree_rl_lab.assets.robots.unitree import UNITREE_G1_29DOF_CFG as ROBOT_CFG
 import unitree_rl_lab.tasks.manipulation.mdp as mdp
 
 # ---------------------------------------------------------------------------
@@ -45,6 +47,10 @@ _P_DES_STAGE1: float = 100.0  # PSI
 _ASSETS_DIR = pathlib.Path(__file__).parents[5] / "assets"
 _VALVE_RIG_USD: str = str(_ASSETS_DIR / "valve_rig.usd")
 
+# G1 + Inspire hands USD — full collision geometry (58 colliders, verified 2026-05-15)
+# Source: unitreerobotics/unitree_sim_isaaclab_usds HuggingFace assets
+_INSPIRE_USD: str = "/home/jescobars/unitree_model/G1/29dof_inspire/g1_29dof_with_inspire_rev_1_0.usd"
+
 
 # ---------------------------------------------------------------------------
 # Scene
@@ -59,11 +65,32 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(),
     )
 
-    # G1 robot — fix_root_link applied in ValveTurnEnvCfg.__post_init__
-    # Pre-grip pose: arms raised forward toward valve, elbows bent.
-    # Shoulder pitch negative = forward raise in G1 convention.
-    robot: ArticulationCfg = ROBOT_CFG.replace(
+    # G1 + Inspire hands robot — base fixed in ValveTurnEnvCfg.__post_init__
+    # USD verified: full CollisionAPI on all arm + finger links (58 colliders).
+    # enabled_self_collisions=False — prevents solver instability with hand collision active.
+    # Actuator gains from unitree_sim_isaaclab robots/unitree.py (manipulation-tuned).
+    # Hands actuator: high stiffness (1000) freezes fingers at pre-grip open pose.
+    robot: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=_INSPIRE_USD,
+            activate_contact_sensors=True,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                disable_gravity=False,
+                retain_accelerations=True,
+                linear_damping=0.0,
+                angular_damping=0.0,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=1.0,
+            ),
+            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                enabled_self_collisions=False,
+                solver_position_iteration_count=4,
+                solver_velocity_iteration_count=1,
+                fix_root_link=True,  # set here instead of __post_init__ for clarity
+            ),
+        ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.793),
             joint_pos={
@@ -71,16 +98,130 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
                 ".*_hip_pitch_joint": -0.1,
                 ".*_knee_joint": 0.3,
                 ".*_ankle_pitch_joint": -0.2,
-                # Arms — pre-grip pose from IsaacSim manual IK (degrees→rad)
-                ".*_shoulder_pitch_joint": -0.955,  # -54.7°
-                "left_shoulder_roll_joint":  0.047, #  +2.7° (mirrored)
-                "right_shoulder_roll_joint": -0.047,#  -2.7°
-                ".*_elbow_joint":             1.251, #  71.7°
-                "left_wrist_roll_joint":      0.583, #  +33.4° (mirrored)
-                "right_wrist_roll_joint":    -0.583, #  -33.4°
+                # Arms — pre-grip pose (PLACEHOLDER: update after IsaacSim pose tuning)
+                ".*_shoulder_pitch_joint": -0.955,  # TODO: re-tune for Inspire geometry
+                "left_shoulder_roll_joint":   0.047,
+                "right_shoulder_roll_joint": -0.047,
+                ".*_elbow_joint":             1.251,
+                "left_wrist_roll_joint":      0.583,
+                "right_wrist_roll_joint":    -0.583,
+                # Inspire fingers — open flat (frozen by high hand actuator stiffness)
+                "L_index_proximal_joint":     0.0,
+                "L_index_intermediate_joint": 0.0,
+                "L_middle_proximal_joint":    0.0,
+                "L_middle_intermediate_joint":0.0,
+                "L_pinky_proximal_joint":     0.0,
+                "L_pinky_intermediate_joint": 0.0,
+                "L_ring_proximal_joint":      0.0,
+                "L_ring_intermediate_joint":  0.0,
+                "L_thumb_proximal_yaw_joint": 0.0,
+                "L_thumb_proximal_pitch_joint":0.0,
+                "L_thumb_intermediate_joint": 0.0,
+                "L_thumb_distal_joint":       0.0,
+                "R_index_proximal_joint":     0.0,
+                "R_index_intermediate_joint": 0.0,
+                "R_middle_proximal_joint":    0.0,
+                "R_middle_intermediate_joint":0.0,
+                "R_pinky_proximal_joint":     0.0,
+                "R_pinky_intermediate_joint": 0.0,
+                "R_ring_proximal_joint":      0.0,
+                "R_ring_intermediate_joint":  0.0,
+                "R_thumb_proximal_yaw_joint": 0.0,
+                "R_thumb_proximal_pitch_joint":0.0,
+                "R_thumb_intermediate_joint": 0.0,
+                "R_thumb_distal_joint":       0.0,
             },
             joint_vel={".*": 0.0},
         ),
+        soft_joint_pos_limit_factor=0.90,
+        actuators={
+            "legs": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    ".*_hip_yaw_joint", ".*_hip_roll_joint", ".*_hip_pitch_joint",
+                    ".*_knee_joint", ".*waist.*",
+                ],
+                effort_limit_sim={
+                    ".*_hip_yaw_joint": 88.0, ".*_hip_roll_joint": 139.0,
+                    ".*_hip_pitch_joint": 88.0, ".*_knee_joint": 139.0,
+                    ".*waist_yaw_joint": 88.0, ".*waist_roll_joint": 35.0,
+                    ".*waist_pitch_joint": 35.0,
+                },
+                velocity_limit_sim={
+                    ".*_hip_yaw_joint": 32.0, ".*_hip_roll_joint": 20.0,
+                    ".*_hip_pitch_joint": 32.0, ".*_knee_joint": 20.0,
+                    ".*waist_yaw_joint": 32.0, ".*waist_roll_joint": 30.0,
+                    ".*waist_pitch_joint": 30.0,
+                },
+                stiffness={
+                    ".*_hip_yaw_joint": 150.0, ".*_hip_roll_joint": 150.0,
+                    ".*_hip_pitch_joint": 200.0, ".*_knee_joint": 200.0,
+                    ".*waist.*": 200.0,
+                },
+                damping={
+                    ".*_hip_yaw_joint": 5.0, ".*_hip_roll_joint": 5.0,
+                    ".*_hip_pitch_joint": 5.0, ".*_knee_joint": 5.0,
+                    ".*waist.*": 5.0,
+                },
+                armature=0.01,
+            ),
+            "feet": ImplicitActuatorCfg(
+                joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+                effort_limit_sim=35.0,
+                velocity_limit_sim=30.0,
+                stiffness=20.0,
+                damping=2.0,
+                armature=0.01,
+            ),
+            "shoulders": ImplicitActuatorCfg(
+                joint_names_expr=[".*_shoulder_pitch_joint", ".*_shoulder_roll_joint"],
+                effort_limit_sim=25.0,
+                velocity_limit_sim=37.0,
+                stiffness=100.0,
+                damping=2.0,
+                armature=0.01,
+            ),
+            "arms": ImplicitActuatorCfg(
+                joint_names_expr=[".*_shoulder_yaw_joint", ".*_elbow_joint"],
+                effort_limit_sim=25.0,
+                velocity_limit_sim=37.0,
+                stiffness=50.0,
+                damping=2.0,
+                armature=0.01,
+            ),
+            "wrist": ImplicitActuatorCfg(
+                joint_names_expr=[".*_wrist_.*"],
+                effort_limit_sim={
+                    ".*_wrist_yaw_joint": 5.0,
+                    ".*_wrist_roll_joint": 25.0,
+                    ".*_wrist_pitch_joint": 5.0,
+                },
+                velocity_limit_sim={
+                    ".*_wrist_yaw_joint": 22.0,
+                    ".*_wrist_roll_joint": 37.0,
+                    ".*_wrist_pitch_joint": 22.0,
+                },
+                stiffness=40.0,
+                damping=2.0,
+                armature=0.01,
+            ),
+            # Inspire fingers — high stiffness freezes at init pose (pre-grip open flat).
+            # Not included in action space (arm only). Stage 2: add grasp curriculum.
+            "hands": ImplicitActuatorCfg(
+                joint_names_expr=[
+                    ".*_index_proximal_joint", ".*_index_intermediate_joint",
+                    ".*_middle_proximal_joint", ".*_middle_intermediate_joint",
+                    ".*_pinky_proximal_joint", ".*_pinky_intermediate_joint",
+                    ".*_ring_proximal_joint", ".*_ring_intermediate_joint",
+                    ".*_thumb_proximal_yaw_joint", ".*_thumb_proximal_pitch_joint",
+                    ".*_thumb_intermediate_joint", ".*_thumb_distal_joint",
+                ],
+                effort_limit=100.0,
+                velocity_limit=50.0,
+                stiffness=1000.0,
+                damping=15.0,
+                armature=0.0,
+            ),
+        },
     )
 
     # Valve rig — separate articulation; handwheel RevoluteJoint is passive.
@@ -266,8 +407,7 @@ class ValveTurnEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4          # physics at 200 Hz
         self.episode_length_s = 30.0
 
-        # Weld G1 base to world
-        self.scene.robot.spawn.articulation_props.fix_root_link = True
+        # fix_root_link set in ArticulationRootPropertiesCfg directly (robot ArticulationCfg).
 
 
 @configclass
