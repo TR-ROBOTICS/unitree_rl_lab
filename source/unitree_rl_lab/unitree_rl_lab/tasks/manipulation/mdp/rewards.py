@@ -94,4 +94,5 @@ def arm_joint_motion(
     """
     asset = env.scene[asset_cfg.name]
     vel = asset.data.joint_vel[:, asset_cfg.joint_ids]
-    return torch.nan_to_num(torch.norm(vel, dim=-1), nan=0.0)
+    # Clamp to [0, 1] — prevents policy exploiting unbounded norm to spin joints
+    return torch.clamp(torch.nan_to_num(torch.norm(vel, dim=-1), nan=0.0), max=1.0)
