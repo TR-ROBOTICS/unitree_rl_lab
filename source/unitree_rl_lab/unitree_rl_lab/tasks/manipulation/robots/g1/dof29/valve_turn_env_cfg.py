@@ -238,7 +238,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Valve",
         spawn=sim_utils.UsdFileCfg(usd_path=_VALVE_RIG_USD),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.60, 0.0, 0.90),  # tuned: reachable but no spawn overlap
+            pos=(0.30, 0.0, 0.90),  # tuned: reachable but no spawn overlap
             rot=(0.707, 0.0, 0.0, 0.707),   # +90° around Z: stem → world X, face toward robot
             joint_pos={"RevoluteJoint": _THETA_MIN},
         ),
@@ -337,18 +337,10 @@ class RewardsCfg:
         },
     )
 
-    # Break zero-motion local min — small bonus for any arm movement.
-    # Removed Stage 2 once contact + wheel-turn established.
-    arm_motion = RewTerm(
-        func=mdp.arm_joint_motion,
-        weight=0.05,
-        params={"asset_cfg": SceneEntityCfg(
-            "robot",
-            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
-        )},
-    )
+    # arm_motion removed — robot contacts wheel, zero-motion trap broken.
+    # Was causing aggressive velocity spikes (policy exploiting clamped norm reward).
 
-    # Smoothness penalties — low weights, safe now that explosions are terminated fast
+    # Smoothness penalties — discourage aggressive arm movements
     action_rate = RewTerm(func=base_mdp.action_rate_l2, weight=-0.001)
 
     joint_vel = RewTerm(
@@ -368,14 +360,6 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
     time_out = DoneTerm(func=base_mdp.time_out, time_out=True)
-    # Reset envs where physics exploded — prevents corrupted obs/rewards poisoning training
-    joint_vel_explosion = DoneTerm(
-        func=base_mdp.joint_vel_out_of_limit,
-        params={"asset_cfg": SceneEntityCfg(
-            "robot",
-            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
-        )},
-    )
 
 
 # ---------------------------------------------------------------------------
