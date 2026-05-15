@@ -238,7 +238,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Valve",
         spawn=sim_utils.UsdFileCfg(usd_path=_VALVE_RIG_USD),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.75, 0.0, 0.90),  # moved forward: avoid arm spawn overlap
+            pos=(0.65, 0.0, 0.90),  # tuned: reachable but no spawn overlap
             rot=(0.707, 0.0, 0.0, 0.707),   # +90° around Z: stem → world X, face toward robot
             joint_pos={"RevoluteJoint": _THETA_MIN},
         ),
@@ -320,11 +320,35 @@ class RewardsCfg:
         },
     )
 
-    # Smoothness penalties disabled Stage 1 — cause NaN overflow when physics explodes
-    # on contact. Re-enable Stage 3+ once wheel-turn behaviour is stable.
-    # action_rate = RewTerm(func=base_mdp.action_rate_l2, weight=-0.05)
+    # Direct gradient: reward wheel velocity in correct direction.
+    # Primary learning signal — without this, pressure_error has no gradient
+    # until wheel already moves.
+    wheel_vel = RewTerm(
+        func=mdp.wheel_vel_toward_target,
+        weight=2.0,
+        params={
+            "p_des": _P_DES_STAGE1,
+            "pressure_a": _G_THETA_A,
+            "pressure_b": _G_THETA_B,
+            "p_min": _P_MIN,
+            "p_max": _P_MAX,
+        },
+    )
+
+    # Break zero-motion local min — small bonus for any arm movement.
+    # Removed Stage 2 once contact + wheel-turn established.
+    arm_motion = RewTerm(
+        func=mdp.arm_joint_motion,
+        weight=0.05,
+        params={"asset_cfg": SceneEntityCfg(
+            "robot",
+            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+        )},
+    )
+
+    # Smoothness penalties — disabled Stage 1, re-enable Stage 3+
+    # action_rate = RewTerm(func=base_mdp.action_rate_l2, weight=-0.01)
     # joint_vel   = RewTerm(func=base_mdp.joint_vel_l2,   weight=-0.001, ...)
-    # joint_acc   = RewTerm(func=base_mdp.joint_acc_l2,   weight=-2.5e-7, ...)
 
 
 # ---------------------------------------------------------------------------
