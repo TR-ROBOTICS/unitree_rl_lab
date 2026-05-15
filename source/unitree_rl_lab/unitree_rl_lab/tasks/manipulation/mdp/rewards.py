@@ -80,7 +80,8 @@ def wheel_vel_toward_target(
     p_now = torch.clamp(pressure_a * theta + pressure_b, p_min, p_max)
     error_sign = torch.sign(p_des - p_now)   # +1 need CCW, -1 need CW
     omega = _get_wheel_vel(env)
-    return torch.clamp(omega * error_sign, min=0.0)
+    # Clamp to [0, 5] rad/s — prevents policy exploiting unbounded wheel spin
+    return torch.clamp(omega * error_sign, min=0.0, max=5.0)
 
 
 def arm_joint_motion(
