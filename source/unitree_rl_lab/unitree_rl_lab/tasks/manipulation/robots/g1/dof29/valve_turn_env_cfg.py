@@ -238,7 +238,7 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Valve",
         spawn=sim_utils.UsdFileCfg(usd_path=_VALVE_RIG_USD),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.30, 0.0, 0.90),  # tuned: reachable but no spawn overlap
+            pos=(0.60, 0.0, 0.90),  # tuned: reachable but no spawn overlap
             rot=(0.707, 0.0, 0.0, 0.707),   # +90° around Z: stem → world X, face toward robot
             joint_pos={"RevoluteJoint": _THETA_MIN},
         ),
@@ -360,6 +360,13 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
     time_out = DoneTerm(func=base_mdp.time_out, time_out=True)
+    joint_vel_explosion = DoneTerm(
+        func=base_mdp.joint_vel_out_of_limit,
+        params={"asset_cfg": SceneEntityCfg(
+            "robot",
+            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+        )},
+    )
 
 
 # ---------------------------------------------------------------------------
