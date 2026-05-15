@@ -47,5 +47,9 @@ def pressure_error(
         p_span:     p_max − p_min (PSI).
     """
     theta = _get_wheel_angle(env)
+    theta = torch.nan_to_num(theta, nan=0.0, posinf=_THETA_MAX_FALLBACK, neginf=0.0)
     p_now = torch.clamp(pressure_a * theta + pressure_b, p_min, p_max)
     return -torch.abs(p_now - p_des) / p_span
+
+
+_THETA_MAX_FALLBACK: float = 50.27  # rad — used in nan_to_num guard
