@@ -270,12 +270,14 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[
                 ".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"
             ])},
+            clip=(-10.0, 10.0),   # guard against explosion inf
         )
         joint_vel = ObsTerm(
             func=base_mdp.joint_vel_rel,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[
                 ".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"
             ])},
+            clip=(-20.0, 20.0),   # guard against explosion inf
         )
 
         def __post_init__(self):
@@ -358,6 +360,14 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
     time_out = DoneTerm(func=base_mdp.time_out, time_out=True)
+    # Reset envs where physics exploded — prevents corrupted obs/rewards poisoning training
+    joint_vel_explosion = DoneTerm(
+        func=base_mdp.joint_vel_out_of_limit,
+        params={"asset_cfg": SceneEntityCfg(
+            "robot",
+            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+        )},
+    )
 
 
 # ---------------------------------------------------------------------------
