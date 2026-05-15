@@ -82,13 +82,13 @@ class ValveTurnSceneCfg(InteractiveSceneCfg):
                 angular_damping=0.0,
                 max_linear_velocity=1000.0,
                 max_angular_velocity=1000.0,
-                max_depenetration_velocity=1.0,
+                max_depenetration_velocity=5.0,
             ),
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                 enabled_self_collisions=False,
-                solver_position_iteration_count=4,
-                solver_velocity_iteration_count=1,
-                fix_root_link=True,  # set here instead of __post_init__ for clarity
+                solver_position_iteration_count=8,   # increased: contact stability
+                solver_velocity_iteration_count=2,   # increased: contact stability
+                fix_root_link=True,
             ),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
@@ -320,28 +320,11 @@ class RewardsCfg:
         },
     )
 
-    # Action rate penalty (from base_mdp — uses last_action buffer)
-    action_rate = RewTerm(func=base_mdp.action_rate_l2, weight=-0.05)
-
-    # Joint velocity penalty — arm joints only
-    joint_vel = RewTerm(
-        func=base_mdp.joint_vel_l2,
-        weight=-0.001,
-        params={"asset_cfg": SceneEntityCfg(
-            "robot",
-            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
-        )},
-    )
-
-    # Joint acceleration penalty — arm joints only
-    joint_acc = RewTerm(
-        func=base_mdp.joint_acc_l2,
-        weight=-2.5e-7,
-        params={"asset_cfg": SceneEntityCfg(
-            "robot",
-            joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
-        )},
-    )
+    # Smoothness penalties disabled Stage 1 — cause NaN overflow when physics explodes
+    # on contact. Re-enable Stage 3+ once wheel-turn behaviour is stable.
+    # action_rate = RewTerm(func=base_mdp.action_rate_l2, weight=-0.05)
+    # joint_vel   = RewTerm(func=base_mdp.joint_vel_l2,   weight=-0.001, ...)
+    # joint_acc   = RewTerm(func=base_mdp.joint_acc_l2,   weight=-2.5e-7, ...)
 
 
 # ---------------------------------------------------------------------------
@@ -409,7 +392,7 @@ class ValveTurnEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 2048
+        self.scene.num_envs = 256
         self.sim.dt = 0.02           # 50 Hz policy rate
         self.sim.render_interval = 4
         self.decimation = 4          # physics at 200 Hz
