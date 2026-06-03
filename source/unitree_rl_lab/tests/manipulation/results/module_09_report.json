@@ -1,0 +1,33 @@
+{
+  "module": 9,
+  "title": "Module #09 test results",
+  "timestamp": "2026-05-11T16:21:17",
+  "exit_status": 0,
+  "summary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0
+  },
+  "results": {
+    "tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_list_envs_exits_cleanly": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_task_id_present": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_entry_point_correct": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_config_entry_point_correct": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_09_task_registration.py::TestTaskRegistration::test_gym_register_importable": {
+      "outcome": "passed",
+      "message": ""
+    }
+  }
+}

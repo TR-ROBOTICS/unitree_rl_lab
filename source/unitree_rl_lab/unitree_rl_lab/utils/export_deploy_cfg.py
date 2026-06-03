@@ -21,6 +21,9 @@ def format_value(x):
 
 def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
     asset: Articulation = env.scene["robot"]
+    if not hasattr(env.cfg.scene.robot, "joint_sdk_names"):
+        # Manipulation tasks (e.g. valve-turn) use plain ArticulationCfg — no SDK mapping needed.
+        return
     joint_sdk_names = env.cfg.scene.robot.joint_sdk_names
     joint_ids_map, _ = resolve_matching_names(asset.data.joint_names, joint_sdk_names, preserve_order=True)
 
