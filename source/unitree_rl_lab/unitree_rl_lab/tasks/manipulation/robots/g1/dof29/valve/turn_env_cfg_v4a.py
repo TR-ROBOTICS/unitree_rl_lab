@@ -86,8 +86,17 @@ class ValveTurnEnvCfgV4A(ValveTurnEnvCfgV4):
 
 
 @configclass
-class ValveTurnPlayEnvCfgV4A(ValveTurnEnvCfgV4A):
+class ValveTurnPlayEnvCfgV4A(ValveTurnEnvCfgV4):
+    """Play config for v4a checkpoints.
+
+    Inherits ValveTurnEnvCfgV4 (not V4A) — bypasses curriculum entirely so play
+    starts at final-stage config (random θ, random p_des, dataset arm init) immediately.
+    Obs/action space identical; v4a checkpoints load cleanly into this env.
+    """
+
     def __post_init__(self):
         super().__post_init__()
         self.scene.num_envs = 1
         self.scene.env_spacing = 2.5
+        from .play_overrides import apply_play_p_des
+        apply_play_p_des(self.events)
