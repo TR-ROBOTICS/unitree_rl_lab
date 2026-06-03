@@ -41,7 +41,7 @@ run_model() {
     echo "========================================================"
 
     # Remove any stale video from previous run in same dir
-    rm -f "$video_dir"/rl-video-episode-*.mp4
+    rm -f "$video_dir"/rl-video-*.mp4
 
     if [ -n "$p_des" ]; then
         VALVE_P_DES="$p_des" python "$PLAY" \
@@ -59,7 +59,7 @@ run_model() {
 
     # Move video to named output before next run overwrites it
     local src
-    src="$(find "$video_dir" -name "rl-video-episode-*.mp4" | sort | tail -1)"
+    src="$(find "$video_dir" -name "rl-video-*.mp4" | sort | tail -1)"
     if [ -n "$src" ]; then
         mv "$src" "$OUT/${label}.mp4"
         echo "  Saved: eval_videos/${label}.mp4"
