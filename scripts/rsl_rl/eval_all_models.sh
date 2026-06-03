@@ -48,13 +48,13 @@ run_model() {
             --num_envs 1 \
             --task "$task" \
             --checkpoint "$ckpt" \
-            --video --video_length 1500
+            --video --video_length 1500 --real-time
     else
         python "$PLAY" \
             --num_envs 1 \
             --task "$task" \
             --checkpoint "$ckpt" \
-            --video --video_length 1500
+            --video --video_length 1500 --real-time
     fi
 
     # Move video to named output before next run overwrites it
