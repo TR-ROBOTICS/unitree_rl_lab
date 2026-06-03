@@ -45,13 +45,13 @@ run_model() {
 
     if [ -n "$p_des" ]; then
         VALVE_P_DES="$p_des" python "$PLAY" \
-            --headless --num_envs 1 \
+            --num_envs 1 \
             --task "$task" \
             --checkpoint "$ckpt" \
             --video --video_length 1500
     else
         python "$PLAY" \
-            --headless --num_envs 1 \
+            --num_envs 1 \
             --task "$task" \
             --checkpoint "$ckpt" \
             --video --video_length 1500
