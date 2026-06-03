@@ -63,3 +63,5 @@ class ValveTurnPlayEnvCfgV1(ValveTurnEnvCfgV1):
         super().__post_init__()
         self.scene.num_envs = 1
         self.scene.env_spacing = 2.5
+        from .play_overrides import apply_play_viewer
+        apply_play_viewer(self)

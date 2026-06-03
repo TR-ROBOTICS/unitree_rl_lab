@@ -14,6 +14,18 @@ Applies to: ValveTurnPlayEnvCfgV2, V3, V4, V4A, V4AE.
 
 import os
 
+# Viewer: eye position and lookat aimed at robot+valve action zone.
+# Robot base at (0, 0, 0.793). Valve at (0.65, 0, 0.90).
+# Front-right diagonal, slightly elevated — shows both arms and wheel clearly.
+_EYE    = (2.0, 1.5, 1.5)
+_LOOKAT = (0.3, 0.0, 0.9)
+
+
+def apply_play_viewer(env_cfg) -> None:
+    """Set close-up viewer camera for play/video recording."""
+    env_cfg.viewer.eye    = _EYE
+    env_cfg.viewer.lookat = _LOOKAT
+
 
 def apply_play_p_des(events_cfg) -> None:
     """Override reset_p_des event params from VALVE_P_DES env var if set.

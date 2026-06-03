@@ -136,5 +136,6 @@ class ValveTurnPlayEnvCfgV4AE(ValveTurnEnvCfgV4):
         super().__post_init__()
         self.scene.num_envs = 1
         self.scene.env_spacing = 2.5
-        from .play_overrides import apply_play_p_des
+        from .play_overrides import apply_play_p_des, apply_play_viewer
+        apply_play_viewer(self)
         apply_play_p_des(self.events)
