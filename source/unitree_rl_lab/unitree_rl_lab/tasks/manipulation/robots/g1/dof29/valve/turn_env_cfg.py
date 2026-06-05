@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import isaaclab.envs.mdp as base_mdp
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -36,8 +35,11 @@ from .base_cfg import (
     _EPS_SIM,
 )
 
-# Stage 1 fixed p_des (same as original v0).
-_P_DES_STAGE1: float = 50.0   # PSI  (θ_des ≈ 17.2 rad, 7.8 rad from θ_min)
+# Stage 1 fixed p_des. Central target (θ_des at midpoint of [θ_min, θ_max]) so v1's
+# random-θ_init reset is direction-balanced: ~50/50 CW(decrease θ) vs CCW(increase θ),
+# equal mean |Δθ| ≈ 10 rad. (Was 50 PSI → θ_des≈17.2 near θ_min → 81% CW / 19% CCW,
+# imprinting a CW bias that degraded CCW quality downstream; see docs/model_eval_qual.md.)
+_P_DES_STAGE1: float = 107.0  # PSI  (θ_des ≈ 29.7 rad ≈ midpoint of [9.42, 50.27])
 
 
 # ---------------------------------------------------------------------------

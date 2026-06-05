@@ -37,7 +37,7 @@ from .base_cfg import _THETA_MIN, _THETA_MAX, _P_MIN, _P_MAX
 from .turn_env_cfg_v4 import ValveTurnEnvCfgV4
 from .turn_env_cfg_v2 import EventCfgV2
 
-_P_DES_INIT: float = 50.0
+_P_DES_INIT: float = 107.0  # central target → θ_des≈29.7 mid-range → direction-balanced θ_init reset (see _P_DES_STAGE1)
 
 _DATASET_PATH: str = str(
     pathlib.Path(__file__).parents[6] / "datasets" / "reach_arm_positions.npy"
