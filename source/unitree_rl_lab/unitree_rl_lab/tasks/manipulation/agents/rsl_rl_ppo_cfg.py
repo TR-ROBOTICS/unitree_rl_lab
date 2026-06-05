@@ -14,6 +14,7 @@ from unitree_rl_lab.tasks.locomotion.agents.rsl_rl_ppo_cfg import BasePPORunnerC
 @configclass
 class ValveTurnPPORunnerCfg(BasePPORunnerCfg):
     experiment_name = "valve_turn_g1_29dof"
+    save_interval = 50 # more frequent saving to capture early learning progress
 
     def __post_init__(self):
         super().__post_init__()

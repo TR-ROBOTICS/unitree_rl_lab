@@ -73,3 +73,7 @@ datasets
 
 # Mimic
 *.npz
+
+# Eval artifacts (qualitative study) — large/binary, kept out of history
+/eval_videos/
+deploy/robots/g1_29dof/config/policy/velocity/v0/exported/policy_tested.onnx

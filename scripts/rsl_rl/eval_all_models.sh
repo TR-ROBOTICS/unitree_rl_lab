@@ -68,52 +68,53 @@ run_model() {
     fi
 }
 
-# ── v0: fixed p_des=50, VALVE_P_DES not supported ─────────────────────────────
-run_model "v0" \
-    "Unitree-G1-29dof-ValveTurn-v0" \
-    "$LOGS/saved_models/v0_model_100.pt" \
-    ""
+# # ── v0: fixed p_des=50, VALVE_P_DES not supported ─────────────────────────────
+# run_model "v0" \
+#     "Unitree-G1-29dof-ValveTurn-v0" \
+#     "$LOGS/saved_models/v0_model_100.pt" \
+#     ""
 
-# ── v1: fixed p_des=50, VALVE_P_DES not supported ─────────────────────────────
-run_model "v1" \
-    "Unitree-G1-29dof-ValveTurn-v1" \
-    "$LOGS/saved_models/turn_v1_model_300.pt" \
-    ""
+# # ── v1: fixed p_des=50, VALVE_P_DES not supported ─────────────────────────────
+# run_model "v1" \
+#     "Unitree-G1-29dof-ValveTurn-v1" \
+#     "$LOGS/saved_models/turn_v1_model_300.pt" \
+#     ""
 
-# ── v2 ────────────────────────────────────────────────────────────────────────
-for P in 50 107 170; do
-run_model "v2@${P}PSI" \
-    "Unitree-G1-29dof-ValveTurn-v2" \
-    "$LOGS/saved_models/turn_v2_model_500.pt" \
-    "$P"
-done
+# # ── v2 ────────────────────────────────────────────────────────────────────────
+# for P in 50 107 170; do
+# run_model "v2@${P}PSI" \
+#     "Unitree-G1-29dof-ValveTurn-v2" \
+#     "$LOGS/saved_models/turn_v2_model_500.pt" \
+#     "$P"
+# done
 
-# ── v3 ────────────────────────────────────────────────────────────────────────
-for P in 50 107 170; do
-run_model "v3@${P}PSI" \
-    "Unitree-G1-29dof-ValveTurn-v3" \
-    "$LOGS/saved_models/turn_v3_model_600.pt" \
-    "$P"
-done
+# # ── v3 ────────────────────────────────────────────────────────────────────────
+# for P in 50 107 170; do
+# run_model "v3@${P}PSI" \
+#     "Unitree-G1-29dof-ValveTurn-v3" \
+#     "$LOGS/saved_models/turn_v3_model_600.pt" \
+#     "$P"
+# done
 
-# ── v4 (CURRENT BEST) ─────────────────────────────────────────────────────────
-for P in 50 107 170; do
-run_model "v4@${P}PSI" \
-    "Unitree-G1-29dof-ValveTurn-v4" \
-    "$LOGS/saved_models/turn_v4_model_899.pt" \
-    "$P"
-done
+# # ── v4 (CURRENT BEST) ─────────────────────────────────────────────────────────
+# for P in 50 107 170; do
+# run_model "v4@${P}PSI" \
+#     "Unitree-G1-29dof-ValveTurn-v4" \
+#     "$LOGS/saved_models/turn_v4_model_899.pt" \
+#     "$P"
+# done
 
-# ── v4ae iter 800 (mid-training) ──────────────────────────────────────────────
-for P in 50 107 170; do
-run_model "v4ae_800@${P}PSI" \
-    "Unitree-G1-29dof-ValveTurn-v4ae" \
-    "$LOGS/2026-05-31_14-54-46/model_800.pt" \
-    "$P"
-done
+# # ── v4ae iter 800 (mid-training) ──────────────────────────────────────────────
+# for P in 50 107 170; do
+# run_model "v4ae_800@${P}PSI" \
+#     "Unitree-G1-29dof-ValveTurn-v4ae" \
+#     "$LOGS/2026-05-31_14-54-46/model_800.pt" \
+#     "$P"
+# done
 
 # ── v4ae iter 1499 (final) ────────────────────────────────────────────────────
-for P in 50 107 170; do
+# for P in 50 107 170; do
+for P in 107 170; do
 run_model "v4ae_1499@${P}PSI" \
     "Unitree-G1-29dof-ValveTurn-v4ae" \
     "$LOGS/2026-05-31_14-54-46/model_1499.pt" \
