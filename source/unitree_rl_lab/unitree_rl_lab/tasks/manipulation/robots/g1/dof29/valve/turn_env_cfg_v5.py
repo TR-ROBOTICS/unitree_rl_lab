@@ -92,7 +92,7 @@ class EventCfgV5(EventCfgV2):
     reset_p_des = EventTerm(
         func=mdp.reset_p_des_random,
         mode="reset",
-        params={"p_min": 50.0, "p_max": 50.0},  # fixed 50 PSI — actual v0 bootstrap (7.7 rad gap)
+        params={"p_min": 107.0, "p_max": 107.0},  # fixed 107 PSI — matches v0 start
     )
 
     reset_arm_v5 = EventTerm(
@@ -165,10 +165,10 @@ class CurriculumCfgV5:
             "p_mid":             _P_MID,
             "p_step":            _P_STEP,
             "dataset_step":      0.10,
-            # v0-style start: θ fixed at θ_min, p_des=50 PSI — actual v0 bootstrap gap (7.7 rad)
+            # v0-style start: θ fixed at θ_min, p_des=107 PSI — matches v0 which converged
             "theta_start_lo":    _THETA_MIN,
             "theta_start_hi":    _THETA_MIN + _THETA_STEP,
-            "p_start":           50.0,
+            "p_start":           107.0,
         },
     )
 
