@@ -92,7 +92,7 @@ class EventCfgV5(EventCfgV2):
     reset_p_des = EventTerm(
         func=mdp.reset_p_des_random,
         mode="reset",
-        params={"p_min": 50.0, "p_max": 50.0},  # fixed 50 PSI — curriculum expands both ways
+        params={"p_min": 107.0, "p_max": 107.0},  # fixed 107 PSI — matches v0 start
     )
 
     reset_arm_v5 = EventTerm(
@@ -134,7 +134,7 @@ class RewardsCfgV5(RewardsCfgV2):
 
     contact_force_jerk = RewTerm(
         func=mdp.contact_force_jerk,
-        weight=-0.01,
+        weight=0.0,
         params={
             "left_sensor_name":  "left_palm_sensor",
             "right_sensor_name": "right_palm_sensor",
@@ -165,10 +165,10 @@ class CurriculumCfgV5:
             "p_mid":             _P_MID,
             "p_step":            _P_STEP,
             "dataset_step":      0.10,
-            # v0-style start: θ fixed at θ_min, p_des=50 PSI — forces actual turning
+            # v0-style start: θ fixed at θ_min, p_des=107 PSI — matches v0 which converged
             "theta_start_lo":    _THETA_MIN,
             "theta_start_hi":    _THETA_MIN + _THETA_STEP,
-            "p_start":           50.0,
+            "p_start":           107.0,
         },
     )
 
