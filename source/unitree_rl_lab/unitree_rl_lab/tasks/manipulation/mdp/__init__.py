@@ -4,6 +4,7 @@ from .curriculums import (
     rim_distance_weight_anneal,
     turn_auto_curriculum_stage,
     turn_auto_curriculum_stage_easy,
+    turn_smooth_curriculum_v5,
 )
 from .events import (
     reset_joints_to_fixed_pose,
@@ -12,6 +13,7 @@ from .events import (
     reset_p_des_random,
     reset_arm_from_dataset,
     reset_arm_staged,
+    reset_arm_v5_mixed,
 )
 from .observations import (
     valve_pressure_now,

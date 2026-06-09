@@ -281,3 +281,44 @@ def reset_arm_from_dataset(
     asset.write_joint_state_to_sim(pos, vel, joint_ids=joint_ids, env_ids=env_ids)
     asset.set_joint_position_target(pos, joint_ids=joint_ids, env_ids=env_ids)
     asset.write_data_to_sim()
+
+
+def reset_arm_v5_mixed(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg,
+    dataset_path: str,
+    fallback_pose: dict[str, float],
+) -> None:
+    """v5 arm init: Bernoulli mix of pre-grip vs dataset based on curriculum progress.
+
+    Reads env._v5curr_dataset_pct (float 0.0→1.0, set by turn_smooth_curriculum_v5).
+    Each env in env_ids independently draws Bernoulli(dataset_pct):
+      True  → sample from reach dataset (same as reset_arm_from_dataset)
+      False → use fallback_pose (same as pre-grip)
+
+    When dataset_pct=0.0 (stage 0): all pre-grip — identical to v2 init.
+    When dataset_pct=1.0 (stage 2): all dataset — identical to v3+ init.
+    """
+    dataset_pct: float = getattr(env, "_v5curr_dataset_pct", 0.0)
+
+    if env_ids is None:
+        asset: Articulation = env.scene[asset_cfg.name]
+        env_ids = asset._ALL_INDICES
+
+    if dataset_pct <= 0.0:
+        reset_joints_to_fixed_pose(env, env_ids, asset_cfg, fallback_pose)
+        return
+    if dataset_pct >= 1.0:
+        reset_arm_from_dataset(env, env_ids, asset_cfg, dataset_path, fallback_pose)
+        return
+
+    # Split env_ids by Bernoulli draw
+    mask = torch.rand(len(env_ids), device=env.device) < dataset_pct
+    ids_dataset = env_ids[mask]
+    ids_fallback = env_ids[~mask]
+
+    if len(ids_dataset) > 0:
+        reset_arm_from_dataset(env, ids_dataset, asset_cfg, dataset_path, fallback_pose)
+    if len(ids_fallback) > 0:
+        reset_joints_to_fixed_pose(env, ids_fallback, asset_cfg, fallback_pose)

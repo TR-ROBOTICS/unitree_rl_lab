@@ -135,6 +135,21 @@ gym.register(
     },
 )
 
+# Turn v5 — smooth dual-axis curriculum + bimanual contact + CCD fingers. Fresh init.
+# Stage 0: θ+p_des expand simultaneously. Stage 1: dataset arm mixing. Stage 2: full.
+gym.register(
+    id="Unitree-G1-29dof-ValveTurn-v5",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.valve.turn_env_cfg_v5:ValveTurnEnvCfgV5",
+        "play_env_cfg_entry_point": f"{__name__}.valve.turn_env_cfg_v5:ValveTurnPlayEnvCfgV5",
+        "rsl_rl_cfg_entry_point": (
+            "unitree_rl_lab.tasks.manipulation.agents.rsl_rl_ppo_cfg:ValveTurnPPORunnerCfg"
+        ),
+    },
+)
+
 # Reach policy — two-policy chain Phase 1 (ADR 0004).
 # 45d obs: joint_pos(14) + joint_vel(14) + valve_pos(3) + last_action(14).
 # Handoff termination: |Δx|<1cm AND √(Δy²+Δz²)<3cm both hands.

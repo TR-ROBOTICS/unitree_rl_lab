@@ -1,13 +1,13 @@
 """Curriculum terms for valve-turn task.
 
-Two curriculum functions:
+  rim_distance_weight_anneal — anneal `rim_distance` reward weight once policy
+    demonstrates consistent hand-to-rim proximity.
 
-  rim_distance_weight_anneal — Stage 2: anneal `rim_distance` reward weight
-    once policy demonstrates consistent hand-to-rim proximity.
+  turn_auto_curriculum_stage — 3-stage auto-curriculum (v4a): expands θ then p_des.
+  turn_auto_curriculum_stage_easy — 4-stage auto-curriculum (v4ae): adds dataset arm init.
 
-  turn_auto_curriculum_stage — Auto-curriculum (v5): expands θ_init range
-    then p_des range based on rolling success rate, enabling a single training
-    run to replicate the human-guided v0→v1→v2 progression automatically.
+  turn_smooth_curriculum_v5 — v5 smooth dual-axis curriculum: expands θ and p_des
+    simultaneously in small steps, then mixes in dataset arm init gradually.
 """
 
 from __future__ import annotations
@@ -304,3 +304,121 @@ def turn_auto_curriculum_stage_easy(
         env._autocurr_last_eval_step = env.common_step_counter
 
     return torch.tensor(float(env._autocurr_stage), device=env.device)
+
+
+def turn_smooth_curriculum_v5(
+    env: "ManagerBasedRLEnv",
+    env_ids: Sequence[int],
+    success_threshold: float = 0.85,
+    window_iters: int = 100,
+    num_steps_per_env: int = 24,
+    theta_min: float = 9.42,
+    theta_max: float = 50.27,
+    theta_mid: float = 29.75,
+    theta_step: float = 2.04,
+    p_min: float = 15.0,
+    p_max: float = 200.0,
+    p_mid: float = 107.0,
+    p_step: float = 9.25,
+    dataset_step: float = 0.10,
+) -> torch.Tensor:
+    """v5 smooth dual-axis curriculum.
+
+    Stage 0 — simultaneous θ and p_des range expansion:
+      Start: θ_init ∈ [θ_mid−θ_step, θ_mid+θ_step], p_des ∈ [p_mid, p_mid]
+      Each 85% SR trigger: θ lo/hi ±θ_step, p_des lo/hi ±p_step (5% of span each)
+      Advance to Stage 1 when both ranges fully open.
+
+    Stage 1 — dataset arm init mixing:
+      Each 85% SR trigger: dataset_pct += dataset_step (+10%)
+      Advance to Stage 2 when dataset_pct >= 1.0.
+
+    Stage 2 — fully open, 100% dataset init. Terminal.
+
+    Mutates event cfg params in-place each trigger:
+      reset_valve_angle: angle_min, angle_max
+      reset_p_des:       p_min, p_max
+    Sets env._v5curr_dataset_pct for reset_arm_v5 event to read.
+    """
+    if len(env_ids) == 0:
+        stage = getattr(env, "_v5curr_stage", 0)
+        return torch.tensor(float(stage), device=env.device)
+
+    if not hasattr(env, "_v5curr_stage"):
+        env._v5curr_stage = 0
+        env._v5curr_theta_lo = theta_mid - theta_step
+        env._v5curr_theta_hi = theta_mid + theta_step
+        env._v5curr_p_lo = p_mid
+        env._v5curr_p_hi = p_mid
+        env._v5curr_dataset_pct = 0.0
+        env._v5curr_window_done = 0
+        env._v5curr_window_success = 0
+        env._v5curr_last_eval_step = 0
+        _v5_apply_theta(env, env._v5curr_theta_lo, env._v5curr_theta_hi)
+        _v5_apply_p(env, env._v5curr_p_lo, env._v5curr_p_hi)
+
+    reset_terminated = getattr(env, "reset_terminated", None)
+    n_success = int(reset_terminated[env_ids].sum().item()) if reset_terminated is not None else 0
+    env._v5curr_window_done += len(env_ids)
+    env._v5curr_window_success += n_success
+
+    window_step_size = window_iters * num_steps_per_env
+    steps_since_eval = env.common_step_counter - env._v5curr_last_eval_step
+
+    if steps_since_eval >= window_step_size and env._v5curr_stage < 2:
+        sr = env._v5curr_window_success / max(env._v5curr_window_done, 1)
+
+        if sr >= success_threshold:
+            if env._v5curr_stage == 0:
+                env._v5curr_theta_lo = max(theta_min, env._v5curr_theta_lo - theta_step)
+                env._v5curr_theta_hi = min(theta_max, env._v5curr_theta_hi + theta_step)
+                env._v5curr_p_lo = max(p_min, env._v5curr_p_lo - p_step)
+                env._v5curr_p_hi = min(p_max, env._v5curr_p_hi + p_step)
+                _v5_apply_theta(env, env._v5curr_theta_lo, env._v5curr_theta_hi)
+                _v5_apply_p(env, env._v5curr_p_lo, env._v5curr_p_hi)
+
+                theta_full = (env._v5curr_theta_lo <= theta_min) and (env._v5curr_theta_hi >= theta_max)
+                p_full = (env._v5curr_p_lo <= p_min) and (env._v5curr_p_hi >= p_max)
+
+                print(
+                    f"[V5Curr] Stage 0 expand | SR={sr:.3f} | "
+                    f"θ=[{env._v5curr_theta_lo:.2f},{env._v5curr_theta_hi:.2f}] "
+                    f"p=[{env._v5curr_p_lo:.1f},{env._v5curr_p_hi:.1f}] "
+                    f"(step {env.common_step_counter})"
+                )
+                if theta_full and p_full:
+                    env._v5curr_stage = 1
+                    print(f"[V5Curr] Stage 0→1 | fully open (step {env.common_step_counter})")
+
+            elif env._v5curr_stage == 1:
+                env._v5curr_dataset_pct = min(1.0, env._v5curr_dataset_pct + dataset_step)
+                print(
+                    f"[V5Curr] Stage 1 expand | SR={sr:.3f} | "
+                    f"dataset_pct={env._v5curr_dataset_pct:.1%} (step {env.common_step_counter})"
+                )
+                if env._v5curr_dataset_pct >= 1.0:
+                    env._v5curr_stage = 2
+                    print(f"[V5Curr] Stage 1→2 | 100% dataset init (step {env.common_step_counter})")
+        else:
+            print(
+                f"[V5Curr] Stage {env._v5curr_stage} hold | "
+                f"SR={sr:.3f} < {success_threshold} (step {env.common_step_counter})"
+            )
+
+        env._v5curr_window_done = 0
+        env._v5curr_window_success = 0
+        env._v5curr_last_eval_step = env.common_step_counter
+
+    return torch.tensor(float(env._v5curr_stage), device=env.device)
+
+
+def _v5_apply_theta(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
+    cfg = env.event_manager.get_term_cfg("reset_valve_angle")
+    cfg.params["angle_min"] = lo
+    cfg.params["angle_max"] = hi
+
+
+def _v5_apply_p(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
+    cfg = env.event_manager.get_term_cfg("reset_p_des")
+    cfg.params["p_min"] = lo
+    cfg.params["p_max"] = hi
