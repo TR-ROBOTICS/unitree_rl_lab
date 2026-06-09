@@ -541,4 +541,4 @@ def contact_force_jerk(
         f_prev = torch.norm(hist[:, 1, 0, :], dim=-1)
         return (f_now - f_prev) ** 2
 
-    return -(_jerk(left_sensor) + _jerk(right_sensor))
+    return _jerk(left_sensor) + _jerk(right_sensor)
