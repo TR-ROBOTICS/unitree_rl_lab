@@ -214,6 +214,7 @@ class ValveTurnEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.episode_length_s = 30.0
+        self.sim.physx.gpu_max_rigid_patch_count = 786432
         # Disable valve pos DR for bootstrapping — fixed valve = stable critic.
         # Re-enable (half_range 0.05) before sim2real.
         self.events.reset_valve_pos.params["half_range_xyz"] = (0.0, 0.0, 0.0)
