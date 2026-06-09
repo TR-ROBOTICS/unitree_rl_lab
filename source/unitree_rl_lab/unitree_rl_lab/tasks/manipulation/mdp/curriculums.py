@@ -321,13 +321,17 @@ def turn_smooth_curriculum_v5(
     p_mid: float = 107.0,
     p_step: float = 9.25,
     dataset_step: float = 0.10,
+    theta_start_lo: float | None = None,
+    theta_start_hi: float | None = None,
+    p_start: float | None = None,
 ) -> torch.Tensor:
     """v5 smooth dual-axis curriculum.
 
     Stage 0 — simultaneous θ and p_des range expansion:
-      Start: θ_init ∈ [θ_mid−θ_step, θ_mid+θ_step], p_des ∈ [p_mid, p_mid]
-      Each 85% SR trigger: θ lo/hi ±θ_step, p_des lo/hi ±p_step (5% of span each)
-      Advance to Stage 1 when both ranges fully open.
+      Start: θ_init ∈ [theta_start_lo, theta_start_hi], p_des ∈ [p_start, p_start]
+             Defaults: [theta_min, theta_min+theta_step], p_start=50.0 (v0-style)
+      Each 85% SR trigger: θ_hi += θ_step (lo clamps at theta_min), p_des ±p_step
+      Advance to Stage 1 when θ_hi >= theta_max AND p fully open.
 
     Stage 1 — dataset arm init mixing:
       Each 85% SR trigger: dataset_pct += dataset_step (+10%)
@@ -340,16 +344,23 @@ def turn_smooth_curriculum_v5(
       reset_p_des:       p_min, p_max
     Sets env._v5curr_dataset_pct for reset_arm_v5 event to read.
     """
+    if theta_start_lo is None:
+        theta_start_lo = theta_min
+    if theta_start_hi is None:
+        theta_start_hi = theta_min + theta_step
+    if p_start is None:
+        p_start = 50.0
+
     if len(env_ids) == 0:
         stage = getattr(env, "_v5curr_stage", 0)
         return torch.tensor(float(stage), device=env.device)
 
     if not hasattr(env, "_v5curr_stage"):
         env._v5curr_stage = 0
-        env._v5curr_theta_lo = theta_mid - theta_step
-        env._v5curr_theta_hi = theta_mid + theta_step
-        env._v5curr_p_lo = p_mid
-        env._v5curr_p_hi = p_mid
+        env._v5curr_theta_lo = theta_start_lo
+        env._v5curr_theta_hi = theta_start_hi
+        env._v5curr_p_lo = p_start
+        env._v5curr_p_hi = p_start
         env._v5curr_dataset_pct = 0.0
         env._v5curr_window_done = 0
         env._v5curr_window_success = 0

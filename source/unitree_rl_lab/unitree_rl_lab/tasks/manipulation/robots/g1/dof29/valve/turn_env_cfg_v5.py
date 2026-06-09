@@ -84,15 +84,15 @@ class EventCfgV5(EventCfgV2):
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("valve_rig"),
-            "angle_min": _THETA_MID - _THETA_STEP,   # 27.71 rad — curriculum expands
-            "angle_max": _THETA_MID + _THETA_STEP,   # 31.79 rad
+            "angle_min": _THETA_MIN,               # 9.42 rad — v0-style start, curriculum expands hi
+            "angle_max": _THETA_MIN + _THETA_STEP, # 11.46 rad
         },
     )
 
     reset_p_des = EventTerm(
         func=mdp.reset_p_des_random,
         mode="reset",
-        params={"p_min": _P_MID, "p_max": _P_MID},  # fixed 107 — curriculum expands
+        params={"p_min": 50.0, "p_max": 50.0},  # fixed 50 PSI — curriculum expands both ways
     )
 
     reset_arm_v5 = EventTerm(
@@ -165,6 +165,10 @@ class CurriculumCfgV5:
             "p_mid":             _P_MID,
             "p_step":            _P_STEP,
             "dataset_step":      0.10,
+            # v0-style start: θ fixed at θ_min, p_des=50 PSI — forces actual turning
+            "theta_start_lo":    _THETA_MIN,
+            "theta_start_hi":    _THETA_MIN + _THETA_STEP,
+            "p_start":           50.0,
         },
     )
 
