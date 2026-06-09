@@ -79,3 +79,4 @@ datasets
 deploy/robots/g1_29dof/config/policy/velocity/v0/exported/policy_tested.onnx
 source/unitree_rl_lab/unitree_rl_lab/assets/valve_rig.usd
 source/unitree_rl_lab/unitree_rl_lab/assets/valve_rig.usd.bak
+source/unitree_rl_lab/unitree_rl_lab/assets/vendor_g1_inspire.usd
