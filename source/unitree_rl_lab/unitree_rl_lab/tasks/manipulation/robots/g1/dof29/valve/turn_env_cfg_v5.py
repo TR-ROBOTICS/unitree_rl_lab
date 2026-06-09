@@ -124,7 +124,7 @@ class RewardsCfgV5(RewardsCfgV2):
 
     bilateral_contact = RewTerm(
         func=mdp.bilateral_contact,
-        weight=1.0,
+        weight=0.0,
         params={
             "left_sensor_name":  "left_palm_sensor",
             "right_sensor_name": "right_palm_sensor",
