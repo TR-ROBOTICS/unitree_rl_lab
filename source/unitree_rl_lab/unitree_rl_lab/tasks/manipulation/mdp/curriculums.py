@@ -409,6 +409,13 @@ def turn_smooth_curriculum_v5(
         env._v5curr_window_success = 0
         env._v5curr_last_eval_step = env.common_step_counter
 
+    if "log" not in env.extras:
+        env.extras["log"] = {}
+    env.extras["log"]["Curriculum/v5_theta_lo"]     = float(getattr(env, "_v5curr_theta_lo", theta_mid - theta_step))
+    env.extras["log"]["Curriculum/v5_theta_hi"]     = float(getattr(env, "_v5curr_theta_hi", theta_mid + theta_step))
+    env.extras["log"]["Curriculum/v5_p_lo"]         = float(getattr(env, "_v5curr_p_lo", p_mid))
+    env.extras["log"]["Curriculum/v5_p_hi"]         = float(getattr(env, "_v5curr_p_hi", p_mid))
+    env.extras["log"]["Curriculum/v5_dataset_pct"]  = float(getattr(env, "_v5curr_dataset_pct", 0.0))
     return torch.tensor(float(env._v5curr_stage), device=env.device)
 
 
