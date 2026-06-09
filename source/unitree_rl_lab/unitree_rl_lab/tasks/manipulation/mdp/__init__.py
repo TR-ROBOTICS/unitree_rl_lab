@@ -32,6 +32,8 @@ from .rewards import (
     reach_progress_reward,
     reach_hand_distance,
     reach_handoff_bonus,
+    bilateral_contact,
+    contact_force_jerk,
 )
 from .terminations import (
     joint_vel_runaway,

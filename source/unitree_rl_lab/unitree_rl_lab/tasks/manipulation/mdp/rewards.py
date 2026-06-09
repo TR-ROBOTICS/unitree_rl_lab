@@ -475,3 +475,70 @@ def arm_joint_motion(
     vel = asset.data.joint_vel[:, asset_cfg.joint_ids]
     # Clamp to [0, 1] — prevents policy exploiting unbounded norm to spin joints
     return torch.clamp(torch.nan_to_num(torch.norm(vel, dim=-1), nan=0.0), max=1.0)
+
+
+# ---------------------------------------------------------------------------
+# v5 contact rewards
+# ---------------------------------------------------------------------------
+
+def bilateral_contact(
+    env: ManagerBasedRLEnv,
+    left_sensor_name: str = "left_palm_sensor",
+    right_sensor_name: str = "right_palm_sensor",
+    f_max: float = 50.0,
+) -> torch.Tensor:
+    """Multiplicative bilateral contact reward ∈ [0, 1].
+
+    Returns (||F_L|| / f_max) * (||F_R|| / f_max), clamped to [0, 1].
+    Zero when either hand has no contact — structurally prevents one-arm solutions.
+
+    Args:
+        left_sensor_name:  Scene key for left palm ContactSensor.
+        right_sensor_name: Scene key for right palm ContactSensor.
+        f_max:             Normalization constant (N). Calibrate from first-run
+                           contact force histogram; default 50 N is a conservative
+                           estimate for palm contact on a handwheel.
+    """
+    left_sensor = env.scene[left_sensor_name]
+    right_sensor = env.scene[right_sensor_name]
+
+    # net_forces_w: (num_envs, 1, 3) — 1 body (palm link), 3 xyz components
+    f_l = torch.norm(
+        torch.nan_to_num(left_sensor.data.net_forces_w[:, 0, :], nan=0.0), dim=-1
+    )
+    f_r = torch.norm(
+        torch.nan_to_num(right_sensor.data.net_forces_w[:, 0, :], nan=0.0), dim=-1
+    )
+
+    f_l_norm = torch.clamp(f_l / f_max, 0.0, 1.0)
+    f_r_norm = torch.clamp(f_r / f_max, 0.0, 1.0)
+    return f_l_norm * f_r_norm
+
+
+def contact_force_jerk(
+    env: ManagerBasedRLEnv,
+    left_sensor_name: str = "left_palm_sensor",
+    right_sensor_name: str = "right_palm_sensor",
+) -> torch.Tensor:
+    """Penalty for abrupt contact force changes (slapping).
+
+    Returns −((||F_L_t|| − ||F_L_{t-1}||)² + (||F_R_t|| − ||F_R_{t-1}||)²).
+
+    Uses net_forces_w_history (history_length=2 required on ContactSensorCfg):
+      history[:, 0, 0, :] = current step
+      history[:, 1, 0, :] = previous step
+
+    Joint-space smoothness (action_rate_l2) cannot detect contact impact events;
+    this directly penalises the force spike that occurs at impact.
+    """
+    left_sensor = env.scene[left_sensor_name]
+    right_sensor = env.scene[right_sensor_name]
+
+    # net_forces_w_history: (num_envs, T, 1, 3) — T=2, 1 body
+    def _jerk(sensor) -> torch.Tensor:
+        hist = torch.nan_to_num(sensor.data.net_forces_w_history, nan=0.0)
+        f_now = torch.norm(hist[:, 0, 0, :], dim=-1)
+        f_prev = torch.norm(hist[:, 1, 0, :], dim=-1)
+        return (f_now - f_prev) ** 2
+
+    return -(_jerk(left_sensor) + _jerk(right_sensor))

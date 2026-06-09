@@ -16,6 +16,7 @@ from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 
 import unitree_rl_lab.tasks.manipulation.mdp as mdp
@@ -306,6 +307,22 @@ class ValveSceneCfg(InteractiveSceneCfg):
                 armature=0.0,
             ),
         },
+    )
+
+    # Palm contact sensors — used for bilateral contact reward and force jerk penalty (v5+).
+    # history_length=2: current step [t=0] + previous step [t=1], avoids storing prev force on env.
+    # net_forces_w shape: (num_envs, 1, 3); norm gives scalar contact force per hand per env.
+    # activate_contact_sensors=True on robot spawn (above) is required for these to receive data.
+    left_palm_sensor: ContactSensorCfg = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand_base_link",
+        history_length=2,
+        track_air_time=False,
+    )
+
+    right_palm_sensor: ContactSensorCfg = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand_base_link",
+        history_length=2,
+        track_air_time=False,
     )
 
     sky_light = AssetBaseCfg(
