@@ -124,16 +124,11 @@ class RewardsCfgV5(RewardsCfgV2):
 
     bilateral_contact = RewTerm(
         func=mdp.bilateral_contact,
-        weight=0.3,
+        weight=0.0,  # disabled — any positive weight creates touch-only local optimum (v5a/b/e/f/g all failed)
         params={
-            "left_sensor_name":   "left_palm_sensor",
-            "right_sensor_name":  "right_palm_sensor",
-            "f_max":              50.0,
-            "use_palm_filter":    True,
-            # Palm normals from Inspire MJCF: left thumb at +Z, right at -Z.
-            # If back-of-hand is still rewarded after training, flip the sign.
-            "palm_normal_left":   (0.0, 0.0, 1.0),
-            "palm_normal_right":  (0.0, 0.0, -1.0),
+            "left_sensor_name":  "left_palm_sensor",
+            "right_sensor_name": "right_palm_sensor",
+            "f_max": 50.0,
         },
     )
 
@@ -159,7 +154,7 @@ class CurriculumCfgV5:
         func=mdp.turn_smooth_curriculum_v5,
         params={
             "success_threshold": 0.85,
-            "window_iters":      100,
+            "window_iters":      10,
             "num_steps_per_env": 24,
             "theta_min":         _THETA_MIN,
             "theta_max":         _THETA_MAX,
@@ -197,12 +192,39 @@ class ValveTurnEnvCfgV5(ValveTurnEnvCfgV2):
 
 
 @configclass
+class EventCfgV5Play(EventCfgV2):
+    """Play events for v5: full θ/p range + 100% dataset arm init.
+
+    Matches Stage-2 training distribution (dataset_pct=1.0) without running the
+    curriculum. reset_arm_from_dataset uses the same dataset path and fallback pose
+    as reset_arm_v5 (Stage 2 = 100% dataset), so eval init = training init.
+    """
+
+    reset_arm = EventTerm(
+        func=mdp.reset_arm_from_dataset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+            ),
+            "dataset_path": _DATASET_PATH,
+            "fallback_pose": _PREGRASP_ARM_POSE,
+        },
+    )
+
+
+@configclass
 class ValveTurnPlayEnvCfgV5(ValveTurnEnvCfgV2):
     """Play config for v5 checkpoints.
 
-    Inherits ValveTurnEnvCfgV2 directly — bypasses curriculum so play starts at
-    full-range config immediately. Obs/action space identical to v5 training.
+    Uses EventCfgV5Play: full θ/p range + 100% dataset arm init.
+    Dataset init matches Stage-2 training distribution (model_1100 trained with
+    dataset_pct=1.0). Without this, arm starts from USD init_state (pre-grip),
+    which is OOD for the final 100 training iters.
     """
+
+    events: EventCfgV5Play = EventCfgV5Play()
 
     def __post_init__(self):
         super().__post_init__()
