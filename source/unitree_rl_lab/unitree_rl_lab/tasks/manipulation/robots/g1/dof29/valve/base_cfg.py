@@ -115,8 +115,8 @@ _FINGER_GRIP: dict[str, float] = {
 # __file__ = .../dof29/valve/base_cfg.py
 # parents[0] = valve/, parents[1] = dof29/, ..., parents[6] = unitree_rl_lab/ (package root)
 _ASSETS_DIR = pathlib.Path(__file__).parents[6] / "assets"
-_VALVE_RIG_USD: str = str(_ASSETS_DIR / "valve_rig.usd")
-_INSPIRE_USD: str = str(_ASSETS_DIR / "vendor_g1_inspire.usd")
+_VALVE_RIG_USD: str = str(_ASSETS_DIR / "valve_rig_collision.usda")
+_INSPIRE_USD: str = str(_ASSETS_DIR / "usd" / "g1_inspire_arm_collisions.usda")
 
 
 # ---------------------------------------------------------------------------
