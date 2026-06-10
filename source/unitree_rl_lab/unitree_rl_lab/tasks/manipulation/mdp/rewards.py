@@ -12,6 +12,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.math import quat_rotate
 
 _THETA_MAX_FALLBACK: float = 50.27  # rad — nan_to_num guard
 
@@ -486,32 +487,65 @@ def bilateral_contact(
     left_sensor_name: str = "left_palm_sensor",
     right_sensor_name: str = "right_palm_sensor",
     f_max: float = 50.0,
+    palm_normal_left: tuple[float, float, float] = (0.0, 0.0, 1.0),
+    palm_normal_right: tuple[float, float, float] = (0.0, 0.0, -1.0),
+    left_body_name: str = "left_hand_base_link",
+    right_body_name: str = "right_hand_base_link",
+    robot_name: str = "robot",
+    valve_name: str = "valve_rig",
+    use_palm_filter: bool = False,
 ) -> torch.Tensor:
     """Multiplicative bilateral contact reward ∈ [0, 1].
 
-    Returns (||F_L|| / f_max) * (||F_R|| / f_max), clamped to [0, 1].
-    Zero when either hand has no contact — structurally prevents one-arm solutions.
+    Returns clamp(F_L/f_max) * clamp(F_R/f_max) optionally weighted by palm alignment.
+
+    When use_palm_filter=True, each hand's contribution is multiplied by
+    relu(palm_normal_world · hand_to_valve_unit) so that only palm-side contact
+    is rewarded. Palm normals are specified in hand_base_link local frame;
+    from the Inspire hand MJCF: left thumb at +Z → palm_normal_left=(0,0,1),
+    right thumb at -Z → palm_normal_right=(0,0,-1). Verify sign in play mode.
 
     Args:
-        left_sensor_name:  Scene key for left palm ContactSensor.
-        right_sensor_name: Scene key for right palm ContactSensor.
-        f_max:             Normalization constant (N). Calibrate from first-run
-                           contact force histogram; default 50 N is a conservative
-                           estimate for palm contact on a handwheel.
+        palm_normal_left:  Palm outward normal in left_hand_base_link local frame.
+        palm_normal_right: Palm outward normal in right_hand_base_link local frame.
+        use_palm_filter:   Enable palm-normal contact filter. Default False.
     """
-    left_sensor = env.scene[left_sensor_name]
+    left_sensor  = env.scene[left_sensor_name]
     right_sensor = env.scene[right_sensor_name]
 
-    # net_forces_w: (num_envs, 1, 3) — 1 body (palm link), 3 xyz components
-    f_l = torch.norm(
-        torch.nan_to_num(left_sensor.data.net_forces_w[:, 0, :], nan=0.0), dim=-1
-    )
-    f_r = torch.norm(
-        torch.nan_to_num(right_sensor.data.net_forces_w[:, 0, :], nan=0.0), dim=-1
-    )
+    f_l = torch.norm(torch.nan_to_num(left_sensor.data.net_forces_w[:, 0, :],  nan=0.0), dim=-1)
+    f_r = torch.norm(torch.nan_to_num(right_sensor.data.net_forces_w[:, 0, :], nan=0.0), dim=-1)
 
     f_l_norm = torch.clamp(f_l / f_max, 0.0, 1.0)
     f_r_norm = torch.clamp(f_r / f_max, 0.0, 1.0)
+
+    if use_palm_filter:
+        robot  = env.scene[robot_name]
+        valve  = env.scene[valve_name]
+        device = env.device
+
+        # Cache body indices once
+        if not hasattr(env, "_palm_body_idx_l"):
+            names = robot.data.body_names
+            env._palm_body_idx_l = names.index(left_body_name)
+            env._palm_body_idx_r = names.index(right_body_name)
+
+        valve_pos = valve.data.root_pos_w  # (N, 3)
+
+        def _palm_align(body_idx: int, n_local: tuple[float, float, float]) -> torch.Tensor:
+            hand_pos  = robot.data.body_pos_w[:, body_idx, :]   # (N, 3)
+            hand_quat = robot.data.body_quat_w[:, body_idx, :]  # (N, 4) wxyz
+            n_t = torch.tensor(n_local, device=device, dtype=torch.float32).expand(hand_pos.shape[0], 3)
+            n_world = quat_rotate(hand_quat, n_t)               # (N, 3)
+            to_valve = valve_pos - hand_pos
+            to_valve = torch.nn.functional.normalize(to_valve, dim=-1)
+            return torch.relu((n_world * to_valve).sum(dim=-1))  # (N,) ∈ [0, 1]
+
+        align_l = _palm_align(env._palm_body_idx_l, palm_normal_left)
+        align_r = _palm_align(env._palm_body_idx_r, palm_normal_right)
+        f_l_norm = f_l_norm * align_l
+        f_r_norm = f_r_norm * align_r
+
     return f_l_norm * f_r_norm
 
 

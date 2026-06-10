@@ -124,11 +124,16 @@ class RewardsCfgV5(RewardsCfgV2):
 
     bilateral_contact = RewTerm(
         func=mdp.bilateral_contact,
-        weight=0.0,
+        weight=0.3,
         params={
-            "left_sensor_name":  "left_palm_sensor",
-            "right_sensor_name": "right_palm_sensor",
-            "f_max": 50.0,
+            "left_sensor_name":   "left_palm_sensor",
+            "right_sensor_name":  "right_palm_sensor",
+            "f_max":              50.0,
+            "use_palm_filter":    True,
+            # Palm normals from Inspire MJCF: left thumb at +Z, right at -Z.
+            # If back-of-hand is still rewarded after training, flip the sign.
+            "palm_normal_left":   (0.0, 0.0, 1.0),
+            "palm_normal_right":  (0.0, 0.0, -1.0),
         },
     )
 
