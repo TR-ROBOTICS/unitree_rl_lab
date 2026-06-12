@@ -175,12 +175,60 @@ class ValveTurnEnvCfgV6(ValveTurnEnvCfgV2):
 
 
 @configclass
-class ValveTurnPlayEnvCfgV6(ValveTurnEnvCfgV2):
+class EventCfgV6Play(EventCfgV6):
+    """Play-time events for v6 checkpoints.
+
+    v6 model_1999 is Stage-3 terminal (100% dataset arm init, full θ/p range).
+    EventCfgV6 starts narrow and relies on the PD curriculum to expand ranges
+    at training time.  Play bypasses the curriculum, so we override the three
+    affected terms to match Stage-3 directly — same fix as EventCfgV5Play
+    (commit f01bfac).
+    """
+
+    # Full θ range
+    reset_valve_angle = EventTerm(
+        func=mdp.reset_valve_to_random_angle,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("valve_rig"),
+            "angle_min": _THETA_MIN,
+            "angle_max": _THETA_MAX,
+        },
+    )
+
+    # Full p range
+    reset_p_des = EventTerm(
+        func=mdp.reset_p_des_random,
+        mode="reset",
+        params={"p_min": _P_MIN, "p_max": _P_MAX},
+    )
+
+    # 100% dataset arm init (no Bernoulli mix — env._v6curr_dataset_pct = 0 without curriculum)
+    reset_arm_v6 = EventTerm(
+        func=mdp.reset_arm_from_dataset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+            ),
+            "dataset_path": _DATASET_PATH,
+            "fallback_pose": _PREGRASP_ARM_POSE,
+        },
+    )
+
+
+@configclass
+class ValveTurnPlayEnvCfgV6(ValveTurnEnvCfgV6):
     """Play config for v6 checkpoints.
 
-    Inherits ValveTurnEnvCfgV2 directly — bypasses curriculum so play starts
-    at full-range config immediately. Obs/action space identical to v6 training.
+    Inherits ValveTurnEnvCfgV6 with EventCfgV6Play overriding events to Stage-3
+    distribution (full θ/p range, 100% dataset arm init) and curriculum=None.
+    Obs/action space identical to v6 training.
     """
+
+    events:    EventCfgV6Play = EventCfgV6Play()
+    curriculum: None          = None
 
     def __post_init__(self):
         super().__post_init__()

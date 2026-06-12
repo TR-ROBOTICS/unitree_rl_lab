@@ -165,6 +165,21 @@ gym.register(
     },
 )
 
+# Turn v6b — v6 bimanual finetune endpoint: full range, rim_distance reward, no curriculum.
+# Fine-tune from turn_v6_model_1999.pt. Drops PD curriculum; starts at Stage-3 distribution.
+gym.register(
+    id="Unitree-G1-29dof-ValveTurn-v6b",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.valve.turn_env_cfg_v6b:ValveTurnEnvCfgV6b",
+        "play_env_cfg_entry_point": f"{__name__}.valve.turn_env_cfg_v6b:ValveTurnPlayEnvCfgV6b",
+        "rsl_rl_cfg_entry_point": (
+            "unitree_rl_lab.tasks.manipulation.agents.rsl_rl_ppo_cfg:ValveTurnPPORunnerCfg"
+        ),
+    },
+)
+
 # Reach policy — two-policy chain Phase 1 (ADR 0004).
 # 45d obs: joint_pos(14) + joint_vel(14) + valve_pos(3) + last_action(14).
 # Handoff termination: |Δx|<1cm AND √(Δy²+Δz²)<3cm both hands.
