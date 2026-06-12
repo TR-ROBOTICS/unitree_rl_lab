@@ -32,6 +32,7 @@ from .rewards import (
     wheel_vel_toward_target,
     arm_joint_motion,
     rim_distance_reward,
+    bimanual_progress_reward,
     reach_approach_reward,
     reach_progress_reward,
     reach_hand_distance,

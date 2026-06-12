@@ -7,14 +7,16 @@ is dropped — environment starts at full-range Stage-3 distribution directly.
 Only addition: rim_distance_reward(mode="max") to pull both arms to the valve
 rim and break single-hand dominance.
 
-Why rim_distance, not bilateral_contact:
-  - bilateral_contact (force × force) creates touch-only local optimum at any
-    positive additive weight (proven v5_a/b/e/f/g, six failed runs, ADR 0007).
-  - rim_distance is geometric — exp(-max(d_L, d_R)/σ).  Worst hand caps reward
-    → both hands must engage.  Pressing harder adds no more reward.
-    Turning still beats hovering (pressure_progress dominates at convergence).
+Why bimanual_progress (multiplicative), not standalone rim_distance:
+  - Standalone rim_distance (w=1.0, additive) collapsed in v6b run 1:
+    policy parked both hands on rim (rim=0.88/step), stopped turning entirely
+    (progress=0.003, success=11%, timeout=86%).  Same failure mode as
+    bilateral_contact (ADR 0007) but geometric variant.
+  - bimanual_progress = pressure_progress_random x rim_distance(mode="max"):
+    zero unless turning AND both hands near rim.  No park-near-rim local
+    optimum.  Two-hand turning gets ~2x reward vs one-hand.
 
-No curriculum term — anneal is optional for a short finetune run.
+No curriculum term — short finetune, no anneal needed.
 
 See docs/adr/0008-v6-pd-curriculum-decoupled-axes.md for v6 design rationale.
 """
@@ -31,6 +33,8 @@ from isaaclab.utils import configclass
 import unitree_rl_lab.tasks.manipulation.mdp as mdp
 
 from .base_cfg import (
+    _G_THETA_A,
+    _G_THETA_B,
     _HUB_BODY_NAME,
     _LEFT_HAND_BODIES,
     _RIGHT_HAND_BODIES,
@@ -41,6 +45,7 @@ from .base_cfg import (
     _THETA_MAX,
     _P_MIN,
     _P_MAX,
+    _P_SPAN,
 )
 from .turn_env_cfg_v6 import (
     EventCfgV6,
@@ -100,32 +105,37 @@ class EventCfgV6b(EventCfgV6):
 
 
 # ---------------------------------------------------------------------------
-# Rewards — v6 + rim_distance bimanual shaping
+# Rewards — v6 + bimanual_progress multiplicative term
 # ---------------------------------------------------------------------------
 
 @configclass
 class RewardsCfgV6b(RewardsCfgV6):
-    """v6 pressure rewards + smoothness + rim_distance bimanual term.
+    """v6 pressure rewards + smoothness + bimanual_progress multiplicative term.
 
-    rim_distance mode="max": exp(-max(d_L, d_R)/sigma).
-    Worst-hand caps reward → both hands must be near the rim simultaneously.
-    weight=1.0 is comparable to one turning step of pressure_progress (×30, ~0.03/step);
-    rim_distance at 1.0/step + progress 0.6/step beats rim_distance at 0.8/step
-    (hovering, no progress) → no static-grip local optimum.
+    bimanual_progress = pressure_progress_random x rim_distance(mode="max").
+    Multiplicative gate: zero unless valve is moving AND both hands near rim.
+    Prevents park-near-rim local optimum (collapsed v6b run 1: standalone
+    rim_distance w=1.0 -> success=11%, timeout=86%, progress~=0).
+    weight=30.0 (same as pressure_progress_random) -> two-hand turning ~= 2x
+    reward vs one-hand; no standalone hovering incentive.
     """
 
-    rim_distance = RewTerm(
-        func=mdp.rim_distance_reward,
-        weight=1.0,
+    bimanual_progress = RewTerm(
+        func=mdp.bimanual_progress_reward,
+        weight=30.0,
         params={
+            "pressure_a":         _G_THETA_A,
+            "pressure_b":         _G_THETA_B,
+            "p_min":              _P_MIN,
+            "p_max":              _P_MAX,
+            "p_span":             _P_SPAN,
             "valve_hub_cfg":      SceneEntityCfg("valve_rig", body_names=[_HUB_BODY_NAME]),
             "left_hand_cfg":      SceneEntityCfg("robot", body_names=_LEFT_HAND_BODIES),
             "right_hand_cfg":     SceneEntityCfg("robot", body_names=_RIGHT_HAND_BODIES),
-            "wheel_radius":       _WHEEL_RADIUS,        # 0.10 m — vertex-scan confirmed
-            "wheel_normal_world": _WHEEL_NORMAL_WORLD,  # (0.0, 0.0, 1.0) — world Z axis
-            "plane_offset":       _WHEEL_PLANE_OFFSET,  # 0.022 m — hub COM to rim mid-plane
+            "wheel_radius":       _WHEEL_RADIUS,        # 0.10 m
+            "wheel_normal_world": _WHEEL_NORMAL_WORLD,  # (0.0, 0.0, 1.0)
+            "plane_offset":       _WHEEL_PLANE_OFFSET,  # 0.022 m
             "sigma":              0.15,                  # 15 cm bandwidth
-            "mode":               "max",                 # worst hand caps reward
         },
     )
 

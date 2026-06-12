@@ -288,6 +288,50 @@ def rim_distance_reward(
     return torch.exp(-d / sigma)
 
 
+def bimanual_progress_reward(
+    env: ManagerBasedRLEnv,
+    pressure_a: float,
+    pressure_b: float,
+    p_min: float,
+    p_max: float,
+    p_span: float,
+    valve_hub_cfg: SceneEntityCfg,
+    left_hand_cfg: SceneEntityCfg,
+    right_hand_cfg: SceneEntityCfg,
+    wheel_radius: float,
+    wheel_normal_world: tuple[float, float, float],
+    plane_offset: float,
+    sigma: float,
+) -> torch.Tensor:
+    """Bimanual turning incentive: pressure_progress_random × rim_proximity.
+
+    Multiplicative gate — zero unless BOTH conditions hold simultaneously:
+      (1) valve is moving toward target   (pressure_progress > 0)
+      (2) both hands are near the rim     (rim_distance mode="max" ≈ 1)
+
+    Prevents the park-near-rim local optimum that collapsed v6b run 1:
+      standalone rim_distance (w=1.0) → policy parked both hands on rim,
+      stopped turning entirely (progress=0.003, success=11%, timeout=86%).
+    With this term: no turning → reward = 0 regardless of hand position.
+
+    Two-hand turning bonus: ~2× pressure_progress when both hands at rim.
+    Use weight equal to pressure_progress_random weight (default 30.0).
+    """
+    progress = pressure_progress_random(env, pressure_a, pressure_b, p_min, p_max, p_span)
+    rim = rim_distance_reward(
+        env,
+        valve_hub_cfg=valve_hub_cfg,
+        left_hand_cfg=left_hand_cfg,
+        right_hand_cfg=right_hand_cfg,
+        wheel_radius=wheel_radius,
+        wheel_normal_world=wheel_normal_world,
+        plane_offset=plane_offset,
+        sigma=sigma,
+        mode="max",
+    )
+    return progress * rim
+
+
 def reach_progress_reward(
     env: ManagerBasedRLEnv,
     left_hand_cfg: SceneEntityCfg,
