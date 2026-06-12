@@ -5,6 +5,7 @@ from .curriculums import (
     turn_auto_curriculum_stage,
     turn_auto_curriculum_stage_easy,
     turn_smooth_curriculum_v5,
+    turn_pd_curriculum_v6,
 )
 from .events import (
     reset_joints_to_fixed_pose,
@@ -14,6 +15,7 @@ from .events import (
     reset_arm_from_dataset,
     reset_arm_staged,
     reset_arm_v5_mixed,
+    reset_arm_v6_mixed,
 )
 from .observations import (
     valve_pressure_now,

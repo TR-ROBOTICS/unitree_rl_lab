@@ -322,3 +322,38 @@ def reset_arm_v5_mixed(
         reset_arm_from_dataset(env, ids_dataset, asset_cfg, dataset_path, fallback_pose)
     if len(ids_fallback) > 0:
         reset_joints_to_fixed_pose(env, ids_fallback, asset_cfg, fallback_pose)
+
+
+def reset_arm_v6_mixed(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg,
+    dataset_path: str,
+    fallback_pose: dict[str, float],
+) -> None:
+    """v6 arm init: Bernoulli mix of pre-grip vs dataset based on v6 curriculum progress.
+
+    Identical to reset_arm_v5_mixed but reads env._v6curr_dataset_pct
+    (set by turn_pd_curriculum_v6) instead of env._v5curr_dataset_pct.
+    """
+    dataset_pct: float = getattr(env, "_v6curr_dataset_pct", 0.0)
+
+    if env_ids is None:
+        asset: Articulation = env.scene[asset_cfg.name]
+        env_ids = asset._ALL_INDICES
+
+    if dataset_pct <= 0.0:
+        reset_joints_to_fixed_pose(env, env_ids, asset_cfg, fallback_pose)
+        return
+    if dataset_pct >= 1.0:
+        reset_arm_from_dataset(env, env_ids, asset_cfg, dataset_path, fallback_pose)
+        return
+
+    mask = torch.rand(len(env_ids), device=env.device) < dataset_pct
+    ids_dataset = env_ids[mask]
+    ids_fallback = env_ids[~mask]
+
+    if len(ids_dataset) > 0:
+        reset_arm_from_dataset(env, ids_dataset, asset_cfg, dataset_path, fallback_pose)
+    if len(ids_fallback) > 0:
+        reset_joints_to_fixed_pose(env, ids_fallback, asset_cfg, fallback_pose)

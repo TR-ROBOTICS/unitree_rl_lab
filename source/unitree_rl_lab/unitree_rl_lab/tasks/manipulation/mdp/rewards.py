@@ -12,7 +12,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_rotate
+from isaaclab.utils.math import quat_apply
 
 _THETA_MAX_FALLBACK: float = 50.27  # rad — nan_to_num guard
 
@@ -536,7 +536,7 @@ def bilateral_contact(
             hand_pos  = robot.data.body_pos_w[:, body_idx, :]   # (N, 3)
             hand_quat = robot.data.body_quat_w[:, body_idx, :]  # (N, 4) wxyz
             n_t = torch.tensor(n_local, device=device, dtype=torch.float32).expand(hand_pos.shape[0], 3)
-            n_world = quat_rotate(hand_quat, n_t)               # (N, 3)
+            n_world = quat_apply(hand_quat, n_t)                # (N, 3)
             to_valve = valve_pos - hand_pos
             to_valve = torch.nn.functional.normalize(to_valve, dim=-1)
             return torch.relu((n_world * to_valve).sum(dim=-1))  # (N,) ∈ [0, 1]

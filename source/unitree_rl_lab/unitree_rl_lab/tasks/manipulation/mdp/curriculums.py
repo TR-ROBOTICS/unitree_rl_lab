@@ -440,3 +440,261 @@ def _v5_apply_p(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
     cfg = env.event_manager.get_term_cfg("reset_p_des")
     cfg.params["p_min"] = lo
     cfg.params["p_max"] = hi
+
+
+# ---------------------------------------------------------------------------
+# v6 PD curriculum — decoupled θ/p expansion axes (ADR 0008)
+# ---------------------------------------------------------------------------
+
+def turn_pd_curriculum_v6(
+    env: "ManagerBasedRLEnv",
+    env_ids: Sequence[int],
+    beta: float = 0.02,
+    sr_target: float = 0.85,
+    kp: float = 2.0,
+    kd: float = 0.5,
+    theta_scale: float = 1.0,
+    p_scale: float = 4.625,
+    mix_scale: float = 0.005,
+    confirm_iters: int = 20,
+    num_steps_per_env: int = 24,
+    theta_min: float = 9.42,
+    theta_max: float = 50.27,
+    theta_start_hi: float | None = None,
+    p_min: float = 15.0,
+    p_max: float = 200.0,
+    p_mid: float = 107.0,
+) -> torch.Tensor:
+    """v6 PD curriculum: decoupled θ/p expansion axes + dataset arm-init mixing.
+
+    Replaces v5's step-function triggers with a continuous PD controller per axis.
+    Stages are sequential (no cross-axis interaction):
+
+      Stage 0 — θ expansion only. p fixed at p_mid=107 PSI.
+        PD controller drives θ_lo↓ and θ_hi↑ toward [θ_min, θ_max].
+        Advance when θ fully open AND EMA_SR ≥ sr_target for confirm_iters iters.
+
+      Stage 1 — p expansion only. θ at full range.
+        PD controller drives p_lo↓ and p_hi↑ around p_mid.
+        Advance when p fully open AND EMA_SR ≥ sr_target for confirm_iters iters.
+
+      Stage 2 — dataset arm-init mixing. θ and p fully open.
+        PD controller drives dataset_pct 0.0→1.0.
+        Advance when dataset_pct ≥ 1.0 AND EMA_SR ≥ sr_target for confirm_iters iters.
+
+      Stage 3 — terminal. All axes fully open, 100% dataset init. No PD active.
+
+    PD equations (per iteration):
+        EMA_SR(t)  = β × SR_batch(t) + (1−β) × EMA_SR(t−1)
+        error(t)   = EMA_SR(t) − sr_target
+        d_error(t) = error(t) − error(t−1)
+        delta(t)   = Kp × error(t) + Kd × d_error(t)
+
+    δ > 0 → expand axis (SR above target). δ < 0 → contract (SR below target).
+
+    State stored on env (prefix _v6curr_):
+        stage, theta_lo, theta_hi, p_lo, p_hi, dataset_pct,
+        ema_sr, prev_error, delta, confirm_count,
+        window_done, window_success, last_eval_step.
+
+    See docs/adr/0008-v6-pd-curriculum-decoupled-axes.md for full rationale.
+
+    Args:
+        beta:              EMA decay. Default 0.02 (~50-ep smoothing at 8192 envs).
+        sr_target:         SR setpoint for PD and stage-advance check. Default 0.85.
+        kp:                Proportional gain. Default 2.0.
+        kd:                Derivative gain. Default 0.5.
+        theta_scale:       rad/iter per unit delta for θ boundary movement. Default 1.0.
+        p_scale:           PSI/iter per unit delta for p boundary movement. Default 4.625.
+        mix_scale:         dataset_pct/iter per unit delta for mixing. Default 0.005.
+        confirm_iters:     Consecutive iters at full+SR to advance stage. Default 20.
+        num_steps_per_env: RSL-RL steps per env per iter (for iter cadence). Default 24.
+        theta_min:         Minimum θ_init (rad). Default 9.42.
+        theta_max:         Maximum θ_init (rad). Default 50.27.
+        theta_start_hi:    Starting θ_hi. Default theta_min + 2.04 (5% of span).
+        p_min:             Minimum p_des (PSI). Default 15.0.
+        p_max:             Maximum p_des (PSI). Default 200.0.
+        p_mid:             p_des fixed during Stage 0; symmetric centre in Stage 1. Default 107.0.
+
+    Returns:
+        Scalar tensor — current stage (0/1/2/3), for TensorBoard logging.
+    """
+    _THETA_STEP_DEFAULT: float = 2.04  # 5% of span (50.27 − 9.42 = 40.85 rad)
+
+    if theta_start_hi is None:
+        theta_start_hi = theta_min + _THETA_STEP_DEFAULT
+
+    if len(env_ids) == 0:
+        stage = getattr(env, "_v6curr_stage", 0)
+        _v6_log(env, theta_min, p_mid)
+        return torch.tensor(float(stage), device=env.device)
+
+    # Initialise tracking state on first call
+    if not hasattr(env, "_v6curr_stage"):
+        env._v6curr_stage = 0
+        env._v6curr_theta_lo = theta_min
+        env._v6curr_theta_hi = float(theta_start_hi)
+        env._v6curr_p_lo = p_mid
+        env._v6curr_p_hi = p_mid
+        env._v6curr_dataset_pct = 0.0
+        env._v6curr_ema_sr = sr_target   # start neutral → delta = 0
+        env._v6curr_prev_error = 0.0
+        env._v6curr_delta = 0.0
+        env._v6curr_confirm_count = 0
+        env._v6curr_window_done = 0
+        env._v6curr_window_success = 0
+        env._v6curr_last_eval_step = 0
+        _v6_apply_theta(env, env._v6curr_theta_lo, env._v6curr_theta_hi)
+        _v6_apply_p(env, env._v6curr_p_lo, env._v6curr_p_hi)
+
+    # Accumulate episode outcomes
+    reset_terminated = getattr(env, "reset_terminated", None)
+    n_success = int(reset_terminated[env_ids].sum().item()) if reset_terminated is not None else 0
+    env._v6curr_window_done += len(env_ids)
+    env._v6curr_window_success += n_success
+
+    # Fire once per training iteration
+    steps_since_eval = env.common_step_counter - env._v6curr_last_eval_step
+
+    if steps_since_eval >= num_steps_per_env and env._v6curr_stage < 3:
+        sr_batch = env._v6curr_window_success / max(env._v6curr_window_done, 1)
+
+        # EMA update
+        env._v6curr_ema_sr = beta * sr_batch + (1.0 - beta) * env._v6curr_ema_sr
+
+        # PD compute
+        error = env._v6curr_ema_sr - sr_target
+        d_error = error - env._v6curr_prev_error
+        delta = kp * error + kd * d_error
+        env._v6curr_prev_error = error
+        env._v6curr_delta = delta
+
+        if env._v6curr_stage == 0:
+            # Expand θ boundaries; both clamped to valid range
+            env._v6curr_theta_hi = float(min(
+                theta_max,
+                max(env._v6curr_theta_lo + 0.1, env._v6curr_theta_hi + delta * theta_scale),
+            ))
+            env._v6curr_theta_lo = float(max(
+                theta_min,
+                min(env._v6curr_theta_hi - 0.1, env._v6curr_theta_lo - delta * theta_scale),
+            ))
+            _v6_apply_theta(env, env._v6curr_theta_lo, env._v6curr_theta_hi)
+
+            theta_full = (
+                env._v6curr_theta_lo <= theta_min + 0.01
+                and env._v6curr_theta_hi >= theta_max - 0.01
+            )
+            if theta_full and env._v6curr_ema_sr >= sr_target:
+                env._v6curr_confirm_count += 1
+            else:
+                env._v6curr_confirm_count = 0
+
+            print(
+                f"[V6Curr] S0 | EMA_SR={env._v6curr_ema_sr:.3f} δ={delta:.3f} "
+                f"θ=[{env._v6curr_theta_lo:.2f},{env._v6curr_theta_hi:.2f}] "
+                f"confirm={env._v6curr_confirm_count}/{confirm_iters} "
+                f"(step {env.common_step_counter})"
+            )
+
+            if env._v6curr_confirm_count >= confirm_iters:
+                env._v6curr_stage = 1
+                env._v6curr_confirm_count = 0
+                env._v6curr_ema_sr = sr_target   # reset to neutral for new axis
+                env._v6curr_prev_error = 0.0
+                print(
+                    f"[V6Curr] Stage 0→1 | θ full open | "
+                    f"(step {env.common_step_counter})"
+                )
+
+        elif env._v6curr_stage == 1:
+            # Expand p symmetrically around p_mid
+            env._v6curr_p_hi = float(min(p_max, max(p_mid, env._v6curr_p_hi + delta * p_scale)))
+            env._v6curr_p_lo = float(max(p_min, min(p_mid, env._v6curr_p_lo - delta * p_scale)))
+            _v6_apply_p(env, env._v6curr_p_lo, env._v6curr_p_hi)
+
+            p_full = (
+                env._v6curr_p_lo <= p_min + 0.1
+                and env._v6curr_p_hi >= p_max - 0.1
+            )
+            if p_full and env._v6curr_ema_sr >= sr_target:
+                env._v6curr_confirm_count += 1
+            else:
+                env._v6curr_confirm_count = 0
+
+            print(
+                f"[V6Curr] S1 | EMA_SR={env._v6curr_ema_sr:.3f} δ={delta:.3f} "
+                f"p=[{env._v6curr_p_lo:.1f},{env._v6curr_p_hi:.1f}] "
+                f"confirm={env._v6curr_confirm_count}/{confirm_iters} "
+                f"(step {env.common_step_counter})"
+            )
+
+            if env._v6curr_confirm_count >= confirm_iters:
+                env._v6curr_stage = 2
+                env._v6curr_confirm_count = 0
+                env._v6curr_ema_sr = sr_target
+                env._v6curr_prev_error = 0.0
+                print(
+                    f"[V6Curr] Stage 1→2 | p full open | "
+                    f"(step {env.common_step_counter})"
+                )
+
+        elif env._v6curr_stage == 2:
+            env._v6curr_dataset_pct = float(
+                max(0.0, min(1.0, env._v6curr_dataset_pct + delta * mix_scale))
+            )
+
+            mix_full = env._v6curr_dataset_pct >= 1.0 - 1e-6
+            if mix_full and env._v6curr_ema_sr >= sr_target:
+                env._v6curr_confirm_count += 1
+            else:
+                env._v6curr_confirm_count = 0
+
+            print(
+                f"[V6Curr] S2 | EMA_SR={env._v6curr_ema_sr:.3f} δ={delta:.3f} "
+                f"mix={env._v6curr_dataset_pct:.1%} "
+                f"confirm={env._v6curr_confirm_count}/{confirm_iters} "
+                f"(step {env.common_step_counter})"
+            )
+
+            if env._v6curr_confirm_count >= confirm_iters:
+                env._v6curr_stage = 3
+                env._v6curr_confirm_count = 0
+                print(
+                    f"[V6Curr] Stage 2→3 | 100% dataset | "
+                    f"(step {env.common_step_counter})"
+                )
+
+        # Reset iter accumulators
+        env._v6curr_window_done = 0
+        env._v6curr_window_success = 0
+        env._v6curr_last_eval_step = env.common_step_counter
+
+    _v6_log(env, theta_min, p_mid)
+    return torch.tensor(float(env._v6curr_stage), device=env.device)
+
+
+def _v6_log(env: "ManagerBasedRLEnv", theta_min: float, p_mid: float) -> None:
+    """Write v6 curriculum scalars to env.extras['log'] for TensorBoard."""
+    if "log" not in env.extras:
+        env.extras["log"] = {}
+    env.extras["log"]["Curriculum/v5_theta_lo"]    = float(getattr(env, "_v6curr_theta_lo",    theta_min))
+    env.extras["log"]["Curriculum/v5_theta_hi"]    = float(getattr(env, "_v6curr_theta_hi",    theta_min))
+    env.extras["log"]["Curriculum/v5_p_lo"]        = float(getattr(env, "_v6curr_p_lo",        p_mid))
+    env.extras["log"]["Curriculum/v5_p_hi"]        = float(getattr(env, "_v6curr_p_hi",        p_mid))
+    env.extras["log"]["Curriculum/v5_dataset_pct"] = float(getattr(env, "_v6curr_dataset_pct", 0.0))
+    # v6-only PD diagnostics
+    env.extras["log"]["Curriculum/ema_sr"]          = float(getattr(env, "_v6curr_ema_sr",      0.0))
+    env.extras["log"]["Curriculum/delta"]           = float(getattr(env, "_v6curr_delta",       0.0))
+
+
+def _v6_apply_theta(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
+    cfg = env.event_manager.get_term_cfg("reset_valve_angle")
+    cfg.params["angle_min"] = lo
+    cfg.params["angle_max"] = hi
+
+
+def _v6_apply_p(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
+    cfg = env.event_manager.get_term_cfg("reset_p_des")
+    cfg.params["p_min"] = lo
+    cfg.params["p_max"] = hi

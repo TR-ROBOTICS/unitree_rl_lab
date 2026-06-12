@@ -150,6 +150,21 @@ gym.register(
     },
 )
 
+# Turn v6 — PD curriculum + decoupled θ/p expansion axes + dataset mixing (ADR 0008).
+# Stage 0: θ PD-expanding, p=107 fixed. Stage 1: p PD-expanding. Stage 2: dataset mix. Stage 3: full.
+gym.register(
+    id="Unitree-G1-29dof-ValveTurn-v6",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.valve.turn_env_cfg_v6:ValveTurnEnvCfgV6",
+        "play_env_cfg_entry_point": f"{__name__}.valve.turn_env_cfg_v6:ValveTurnPlayEnvCfgV6",
+        "rsl_rl_cfg_entry_point": (
+            "unitree_rl_lab.tasks.manipulation.agents.rsl_rl_ppo_cfg:ValveTurnPPORunnerCfg"
+        ),
+    },
+)
+
 # Reach policy — two-policy chain Phase 1 (ADR 0004).
 # 45d obs: joint_pos(14) + joint_vel(14) + valve_pos(3) + last_action(14).
 # Handoff termination: |Δx|<1cm AND √(Δy²+Δz²)<3cm both hands.
