@@ -45,17 +45,9 @@ _ut_setup_conda_env() {
         'source '${UNITREE_RL_LAB_PATH}'/unitree_rl_lab.sh' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
 
-    # check if we have _isaac_sim directory -> if so that means binaries were installed.
-    # we need to setup conda variables to load the binaries
-    local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
-
-    if [ -f "${isaacsim_setup_conda_env_script}" ]; then
-        # add variables to environment during activation
-        printf '%s\n' \
-            '# for Isaac Sim' \
-            'source '${isaacsim_setup_conda_env_script}'' \
-            '' >> ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
-    fi
+    # Isaac Sim 5.1.0 pip package (isaacsim==5.1.0.0) bootstraps the Kit runtime
+    # directly from the installed binary — no need to source setup_conda_env.sh.
+    # Sourcing it pollutes PYTHONPATH with Kit's python3.11 paths, which breaks pip.
 }
 
 # pass the arguments
