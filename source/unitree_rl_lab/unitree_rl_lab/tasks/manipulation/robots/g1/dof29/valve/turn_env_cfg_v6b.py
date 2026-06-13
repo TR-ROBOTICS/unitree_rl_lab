@@ -139,6 +139,28 @@ class RewardsCfgV6b(RewardsCfgV6):
         },
     )
 
+    # Penalty for turning with only one hand.  Gated on forward progress →
+    # no incentive to stop turning to dodge the penalty.
+    # weight=-15.0: net ratio 2-hand:1-hand ≈ 2.3× (see rewards.py docstring).
+    single_hand_turning_penalty = RewTerm(
+        func=mdp.single_hand_turning_penalty,
+        weight=-15.0,
+        params={
+            "pressure_a":         _G_THETA_A,
+            "pressure_b":         _G_THETA_B,
+            "p_min":              _P_MIN,
+            "p_max":              _P_MAX,
+            "p_span":             _P_SPAN,
+            "valve_hub_cfg":      SceneEntityCfg("valve_rig", body_names=[_HUB_BODY_NAME]),
+            "left_hand_cfg":      SceneEntityCfg("robot", body_names=_LEFT_HAND_BODIES),
+            "right_hand_cfg":     SceneEntityCfg("robot", body_names=_RIGHT_HAND_BODIES),
+            "wheel_radius":       _WHEEL_RADIUS,
+            "wheel_normal_world": _WHEEL_NORMAL_WORLD,
+            "plane_offset":       _WHEEL_PLANE_OFFSET,
+            "sigma":              0.15,
+        },
+    )
+
 
 # ---------------------------------------------------------------------------
 # Env configs

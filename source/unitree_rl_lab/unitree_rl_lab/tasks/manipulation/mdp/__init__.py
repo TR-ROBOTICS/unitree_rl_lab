@@ -33,6 +33,7 @@ from .rewards import (
     arm_joint_motion,
     rim_distance_reward,
     bimanual_progress_reward,
+    single_hand_turning_penalty,
     reach_approach_reward,
     reach_progress_reward,
     reach_hand_distance,

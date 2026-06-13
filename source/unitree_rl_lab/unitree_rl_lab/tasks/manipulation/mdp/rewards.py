@@ -150,7 +150,12 @@ def pressure_progress_random(
     fresh = env.episode_length_buf <= 1
     progress = torch.where(fresh, torch.zeros_like(err), (prev - err) / p_span)
     env._valve_prev_abs_err = err.detach().clone()
-    return torch.nan_to_num(progress, nan=0.0, posinf=0.0, neginf=0.0)
+    progress = torch.nan_to_num(progress, nan=0.0, posinf=0.0, neginf=0.0)
+    # Cache for same-step reuse by bimanual_progress_reward / single_hand_turning_penalty.
+    # Both depend on this value but MUST NOT call pressure_progress_random() again —
+    # _valve_prev_abs_err is already consumed; a second call returns 0.
+    env._pressure_progress_cache = progress
+    return progress
 
 
 def wheel_vel_toward_target(
@@ -316,8 +321,14 @@ def bimanual_progress_reward(
 
     Two-hand turning bonus: ~2× pressure_progress when both hands at rim.
     Use weight equal to pressure_progress_random weight (default 30.0).
+
+    NOTE: reads from env._pressure_progress_cache (written by
+    pressure_progress_random each step). Must NOT call pressure_progress_random()
+    directly — that function is stateful (_valve_prev_abs_err); a second call
+    in the same step returns 0.
     """
-    progress = pressure_progress_random(env, pressure_a, pressure_b, p_min, p_max, p_span)
+    progress = getattr(env, "_pressure_progress_cache",
+                       torch.zeros(env.num_envs, device=env.device))
     rim = rim_distance_reward(
         env,
         valve_hub_cfg=valve_hub_cfg,
@@ -330,6 +341,60 @@ def bimanual_progress_reward(
         mode="max",
     )
     return progress * rim
+
+
+def single_hand_turning_penalty(
+    env: ManagerBasedRLEnv,
+    pressure_a: float,
+    pressure_b: float,
+    p_min: float,
+    p_max: float,
+    p_span: float,
+    valve_hub_cfg: SceneEntityCfg,
+    left_hand_cfg: SceneEntityCfg,
+    right_hand_cfg: SceneEntityCfg,
+    wheel_radius: float,
+    wheel_normal_world: tuple[float, float, float],
+    plane_offset: float,
+    sigma: float,
+) -> torch.Tensor:
+    """Penalty signal for turning the valve with only one hand.
+
+    Returns: max(progress, 0) × (1 − rim_bimanual)
+
+    Apply with a NEGATIVE weight (e.g., weight=-15.0).
+
+    Design rationale:
+      - Gated on forward progress: zero when not turning → no incentive
+        to stop turning to avoid the penalty (avoids zero-motion local min).
+      - (1 − rim_bimanual): maximal when one hand is far from rim, zero when
+        both hands are at rim simultaneously.
+      - Combined with bimanual_progress (bonus) and pressure_progress_random
+        (base), net reward ratio 2-hand:1-hand ≈ 2.3× at w=-15.0.
+
+    rim_bimanual uses mode="max" (worst hand caps score) — same as
+    bimanual_progress_reward, ensuring both hands must be near the rim to
+    suppress the penalty.
+
+    NOTE: reads from env._pressure_progress_cache (written by
+    pressure_progress_random each step). Must NOT call pressure_progress_random()
+    directly — that function is stateful (_valve_prev_abs_err); a second call
+    in the same step returns 0.
+    """
+    progress = getattr(env, "_pressure_progress_cache",
+                       torch.zeros(env.num_envs, device=env.device))
+    rim = rim_distance_reward(
+        env,
+        valve_hub_cfg=valve_hub_cfg,
+        left_hand_cfg=left_hand_cfg,
+        right_hand_cfg=right_hand_cfg,
+        wheel_radius=wheel_radius,
+        wheel_normal_world=wheel_normal_world,
+        plane_offset=plane_offset,
+        sigma=sigma,
+        mode="max",
+    )
+    return torch.clamp(progress, min=0.0) * (1.0 - rim)
 
 
 def reach_progress_reward(
