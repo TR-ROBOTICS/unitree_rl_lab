@@ -342,7 +342,8 @@ def turn_smooth_curriculum_v5(
     Mutates event cfg params in-place each trigger:
       reset_valve_angle: angle_min, angle_max
       reset_p_des:       p_min, p_max
-    Sets env._v5curr_dataset_pct for reset_arm_v5 event to read.
+    Syncs env._curr_dataset_pct (canonical mixing fraction) for the unified
+    reset_arm_mixed event to read.
     """
     if theta_start_lo is None:
         theta_start_lo = theta_min
@@ -365,8 +366,8 @@ def turn_smooth_curriculum_v5(
         env._v5curr_window_done = 0
         env._v5curr_window_success = 0
         env._v5curr_last_eval_step = 0
-        _v5_apply_theta(env, env._v5curr_theta_lo, env._v5curr_theta_hi)
-        _v5_apply_p(env, env._v5curr_p_lo, env._v5curr_p_hi)
+        _apply_theta(env, env._v5curr_theta_lo, env._v5curr_theta_hi)
+        _apply_p(env, env._v5curr_p_lo, env._v5curr_p_hi)
 
     reset_terminated = getattr(env, "reset_terminated", None)
     n_success = int(reset_terminated[env_ids].sum().item()) if reset_terminated is not None else 0
@@ -385,8 +386,8 @@ def turn_smooth_curriculum_v5(
                 env._v5curr_theta_hi = min(theta_max, env._v5curr_theta_hi + theta_step)
                 env._v5curr_p_lo = max(p_min, env._v5curr_p_lo - p_step)
                 env._v5curr_p_hi = min(p_max, env._v5curr_p_hi + p_step)
-                _v5_apply_theta(env, env._v5curr_theta_lo, env._v5curr_theta_hi)
-                _v5_apply_p(env, env._v5curr_p_lo, env._v5curr_p_hi)
+                _apply_theta(env, env._v5curr_theta_lo, env._v5curr_theta_hi)
+                _apply_p(env, env._v5curr_p_lo, env._v5curr_p_hi)
 
                 theta_full = (env._v5curr_theta_lo <= theta_min) and (env._v5curr_theta_hi >= theta_max)
                 p_full = (env._v5curr_p_lo <= p_min) and (env._v5curr_p_hi >= p_max)
@@ -427,16 +428,25 @@ def turn_smooth_curriculum_v5(
     env.extras["log"]["Curriculum/v5_p_lo"]         = float(getattr(env, "_v5curr_p_lo", p_mid))
     env.extras["log"]["Curriculum/v5_p_hi"]         = float(getattr(env, "_v5curr_p_hi", p_mid))
     env.extras["log"]["Curriculum/v5_dataset_pct"]  = float(getattr(env, "_v5curr_dataset_pct", 0.0))
+    # Canonical arm-init mixing fraction read by the unified reset_arm_mixed event.
+    env._curr_dataset_pct = float(getattr(env, "_v5curr_dataset_pct", 0.0))
     return torch.tensor(float(env._v5curr_stage), device=env.device)
 
 
-def _v5_apply_theta(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
+# ---------------------------------------------------------------------------
+# Shared curriculum→event seam — both v5 (step-function) and v6 (PD) drive the
+# same θ_init / p_des reset ranges through these helpers (mutate the reset-event
+# params in place). Single definition; the advance *rule* is what varies, not
+# how a range is applied.
+# ---------------------------------------------------------------------------
+
+def _apply_theta(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
     cfg = env.event_manager.get_term_cfg("reset_valve_angle")
     cfg.params["angle_min"] = lo
     cfg.params["angle_max"] = hi
 
 
-def _v5_apply_p(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
+def _apply_p(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
     cfg = env.event_manager.get_term_cfg("reset_p_des")
     cfg.params["p_min"] = lo
     cfg.params["p_max"] = hi
@@ -544,8 +554,8 @@ def turn_pd_curriculum_v6(
         env._v6curr_window_done = 0
         env._v6curr_window_success = 0
         env._v6curr_last_eval_step = 0
-        _v6_apply_theta(env, env._v6curr_theta_lo, env._v6curr_theta_hi)
-        _v6_apply_p(env, env._v6curr_p_lo, env._v6curr_p_hi)
+        _apply_theta(env, env._v6curr_theta_lo, env._v6curr_theta_hi)
+        _apply_p(env, env._v6curr_p_lo, env._v6curr_p_hi)
 
     # Accumulate episode outcomes
     reset_terminated = getattr(env, "reset_terminated", None)
@@ -579,7 +589,7 @@ def turn_pd_curriculum_v6(
                 theta_min,
                 min(env._v6curr_theta_hi - 0.1, env._v6curr_theta_lo - delta * theta_scale),
             ))
-            _v6_apply_theta(env, env._v6curr_theta_lo, env._v6curr_theta_hi)
+            _apply_theta(env, env._v6curr_theta_lo, env._v6curr_theta_hi)
 
             theta_full = (
                 env._v6curr_theta_lo <= theta_min + 0.01
@@ -611,7 +621,7 @@ def turn_pd_curriculum_v6(
             # Expand p symmetrically around p_mid
             env._v6curr_p_hi = float(min(p_max, max(p_mid, env._v6curr_p_hi + delta * p_scale)))
             env._v6curr_p_lo = float(max(p_min, min(p_mid, env._v6curr_p_lo - delta * p_scale)))
-            _v6_apply_p(env, env._v6curr_p_lo, env._v6curr_p_hi)
+            _apply_p(env, env._v6curr_p_lo, env._v6curr_p_hi)
 
             p_full = (
                 env._v6curr_p_lo <= p_min + 0.1
@@ -686,15 +696,280 @@ def _v6_log(env: "ManagerBasedRLEnv", theta_min: float, p_mid: float) -> None:
     # v6-only PD diagnostics
     env.extras["log"]["Curriculum/ema_sr"]          = float(getattr(env, "_v6curr_ema_sr",      0.0))
     env.extras["log"]["Curriculum/delta"]           = float(getattr(env, "_v6curr_delta",       0.0))
+    # Canonical arm-init mixing fraction read by the unified reset_arm_mixed event.
+    env._curr_dataset_pct = float(getattr(env, "_v6curr_dataset_pct", 0.0))
 
 
-def _v6_apply_theta(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
-    cfg = env.event_manager.get_term_cfg("reset_valve_angle")
-    cfg.params["angle_min"] = lo
-    cfg.params["angle_max"] = hi
+# ---------------------------------------------------------------------------
+# v7 PD curriculum — independent per-axis PD controllers (ADR 0012)
+#
+# Differences from v6:
+#   - Two fully independent EMA+PD controllers, one per axis (θ and p).
+#     v6 reuses a single EMA signal across stages; v7 keeps each EMA alive
+#     and independent throughout training for diagnostics.
+#   - No dataset-mixing stage.  v7 (Option-X) uses pre-grasp init throughout;
+#     the "arm init" dimension is fixed at pre-grip and not advanced by the
+#     curriculum.  This gives a cleaner two-axis ablation surface.
+#   - Per-axis Kp/Kd/scale exposed separately so each axis can be tuned
+#     without touching the other.
+#
+# Stage 0: θ expansion  (p fixed at p_mid).  θ-PD active; p-PD idle.
+# Stage 1: p expansion  (θ fully open).      p-PD active; θ-PD idle.
+# Stage 2: terminal — both axes fully open, pre-grasp init throughout.
+# ---------------------------------------------------------------------------
+
+def turn_pd_curriculum_v7(
+    env: "ManagerBasedRLEnv",
+    env_ids: Sequence[int],
+    # --- θ-axis PD knobs ---
+    kp_theta: float = 2.0,
+    kd_theta: float = 0.5,
+    beta_theta: float = 0.02,
+    theta_scale: float = 1.0,
+    # --- p-axis PD knobs ---
+    kp_p: float = 2.0,
+    kd_p: float = 0.5,
+    beta_p: float = 0.02,
+    p_scale: float = 4.625,
+    # --- shared knobs ---
+    sr_target: float = 0.85,
+    confirm_iters: int = 20,
+    num_steps_per_env: int = 24,
+    # --- envelope ---
+    theta_min: float = 9.42,
+    theta_max: float = 50.27,
+    theta_start_hi: float | None = None,
+    p_min: float = 15.0,
+    p_max: float = 200.0,
+    p_mid: float = 107.0,
+) -> torch.Tensor:
+    """v7 independent-axis PD curriculum (no dataset mixing).
+
+    Each axis has its own EMA success-rate tracker and PD controller.
+    Stages are sequential; the active axis is advanced by its own controller
+    while the idle axis's EMA is kept updated (for TensorBoard) but its
+    boundaries are held fixed.
+
+    Stage 0 — θ expansion only.
+        p fixed at p_mid.  θ-PD drives θ_lo↓ and θ_hi↑ from a narrow
+        starting window.  Advance when θ fully open AND θ-EMA_SR ≥ sr_target
+        for confirm_iters consecutive iterations.
+
+    Stage 1 — p expansion only.
+        θ fully open (boundaries frozen).  p-PD drives p_lo↓ and p_hi↑
+        around p_mid.  Advance when p fully open AND p-EMA_SR ≥ sr_target
+        for confirm_iters consecutive iterations.
+
+    Stage 2 — terminal.  Both axes fully open.  No arm-init mixing (v7 keeps
+        pre-grasp throughout).
+
+    PD equations (per iteration, per active axis):
+        EMA_SR(t)  = β × SR_batch(t) + (1−β) × EMA_SR(t−1)
+        error(t)   = EMA_SR(t) − sr_target
+        d_error(t) = error(t) − error(t−1)
+        delta(t)   = Kp × error(t) + Kd × d_error(t)
+
+    Both EMA trackers are updated every iteration (regardless of which stage is
+    active) so TensorBoard shows each axis's SR independently.
+
+    Logged TensorBoard keys (env.extras['log']):
+        Curriculum/stage             — 0 / 1 / 2
+        Curriculum/theta_lo          — current θ_lo  (rad)
+        Curriculum/theta_hi          — current θ_hi  (rad)
+        Curriculum/p_lo              — current p_lo  (PSI)
+        Curriculum/p_hi              — current p_hi  (PSI)
+        Curriculum/ema_sr_theta      — θ-axis EMA success rate
+        Curriculum/ema_sr_p          — p-axis EMA success rate
+        Curriculum/delta_theta       — θ-axis PD output δ (bare name: overlays v5/v6 Curriculum/delta)
+        Curriculum/delta_p           — p-axis PD output δ (bare name: overlays v5/v6 Curriculum/delta)
+        Curriculum/confirm           — confirm-iter counter for active stage
+
+    Note: ``env._curr_dataset_pct`` is set to 0.0 each call because v7 does
+    not advance arm-init mixing; ``reset_arm_mixed`` (if present) will always
+    use pre-grip for v7.
+
+    Args:
+        kp_theta:          Proportional gain for θ-axis PD. Default 2.0.
+        kd_theta:          Derivative gain for θ-axis PD. Default 0.5.
+        beta_theta:        EMA decay for θ-axis. Default 0.02 (~50-iter lag).
+        theta_scale:       rad/iter per unit delta for θ boundary. Default 1.0.
+        kp_p:              Proportional gain for p-axis PD. Default 2.0.
+        kd_p:              Derivative gain for p-axis PD. Default 0.5.
+        beta_p:            EMA decay for p-axis. Default 0.02.
+        p_scale:           PSI/iter per unit delta for p boundary. Default 4.625
+                           (same time-constant as θ at identical Kp/Kd).
+        sr_target:         SR setpoint for both axes. Default 0.85.
+        confirm_iters:     Consecutive iters at full+SR to advance. Default 20.
+        num_steps_per_env: RSL-RL steps per env per iter. Default 24.
+        theta_min:         Minimum θ_init (rad). Default 9.42 (1.5 rev).
+        theta_max:         Maximum θ_init (rad). Default 50.27 (8 rev).
+        theta_start_hi:    Starting θ_hi. Default theta_min + 2.04 (5% of span).
+        p_min:             Minimum p_des (PSI). Default 15.0.
+        p_max:             Maximum p_des (PSI). Default 200.0.
+        p_mid:             Fixed p during Stage 0; symmetric centre in Stage 1.
+                           Default 107.0.
+
+    Returns:
+        Scalar tensor — current stage (0/1/2), for TensorBoard logging.
+    """
+    _THETA_STEP_DEFAULT: float = 2.04  # 5% of span (50.27 − 9.42 = 40.85 rad)
+
+    if theta_start_hi is None:
+        theta_start_hi = theta_min + _THETA_STEP_DEFAULT
+
+    if len(env_ids) == 0:
+        _v7_log(env, theta_min, p_mid)
+        return torch.tensor(float(getattr(env, "_v7curr_stage", 0)), device=env.device)
+
+    # Initialise per-axis tracking state on first call
+    if not hasattr(env, "_v7curr_stage"):
+        env._v7curr_stage = 0
+        # θ-axis state
+        env._v7curr_theta_lo = theta_min
+        env._v7curr_theta_hi = float(theta_start_hi)
+        env._v7curr_ema_theta = sr_target   # start neutral → delta = 0
+        env._v7curr_prev_err_theta = 0.0
+        env._v7curr_delta_theta = 0.0
+        # p-axis state
+        env._v7curr_p_lo = p_mid
+        env._v7curr_p_hi = p_mid
+        env._v7curr_ema_p = sr_target
+        env._v7curr_prev_err_p = 0.0
+        env._v7curr_delta_p = 0.0
+        # shared
+        env._v7curr_confirm_count = 0
+        env._v7curr_window_done = 0
+        env._v7curr_window_success = 0
+        env._v7curr_last_eval_step = 0
+        # apply initial ranges
+        _apply_theta(env, env._v7curr_theta_lo, env._v7curr_theta_hi)
+        _apply_p(env, env._v7curr_p_lo, env._v7curr_p_hi)
+
+    # Accumulate episode outcomes
+    reset_terminated = getattr(env, "reset_terminated", None)
+    n_success = int(reset_terminated[env_ids].sum().item()) if reset_terminated is not None else 0
+    env._v7curr_window_done += len(env_ids)
+    env._v7curr_window_success += n_success
+
+    # Fire once per training iteration
+    steps_since_eval = env.common_step_counter - env._v7curr_last_eval_step
+
+    if steps_since_eval >= num_steps_per_env and env._v7curr_stage < 2:
+        sr_batch = env._v7curr_window_success / max(env._v7curr_window_done, 1)
+
+        # Update BOTH EMA trackers every iteration (independent signals)
+        env._v7curr_ema_theta = beta_theta * sr_batch + (1.0 - beta_theta) * env._v7curr_ema_theta
+        env._v7curr_ema_p = beta_p * sr_batch + (1.0 - beta_p) * env._v7curr_ema_p
+
+        # --- θ-axis PD (active only in Stage 0) ---
+        err_theta = env._v7curr_ema_theta - sr_target
+        d_err_theta = err_theta - env._v7curr_prev_err_theta
+        delta_theta = kp_theta * err_theta + kd_theta * d_err_theta
+        env._v7curr_prev_err_theta = err_theta
+        env._v7curr_delta_theta = delta_theta
+
+        # --- p-axis PD (active only in Stage 1) ---
+        err_p = env._v7curr_ema_p - sr_target
+        d_err_p = err_p - env._v7curr_prev_err_p
+        delta_p = kp_p * err_p + kd_p * d_err_p
+        env._v7curr_prev_err_p = err_p
+        env._v7curr_delta_p = delta_p
+
+        if env._v7curr_stage == 0:
+            # Apply θ-axis PD
+            env._v7curr_theta_hi = float(min(
+                theta_max,
+                max(env._v7curr_theta_lo + 0.1, env._v7curr_theta_hi + delta_theta * theta_scale),
+            ))
+            env._v7curr_theta_lo = float(max(
+                theta_min,
+                min(env._v7curr_theta_hi - 0.1, env._v7curr_theta_lo - delta_theta * theta_scale),
+            ))
+            _apply_theta(env, env._v7curr_theta_lo, env._v7curr_theta_hi)
+
+            theta_full = (
+                env._v7curr_theta_lo <= theta_min + 0.01
+                and env._v7curr_theta_hi >= theta_max - 0.01
+            )
+            if theta_full and env._v7curr_ema_theta >= sr_target:
+                env._v7curr_confirm_count += 1
+            else:
+                env._v7curr_confirm_count = 0
+
+            print(
+                f"[V7Curr] S0/θ | ema_θ={env._v7curr_ema_theta:.3f} "
+                f"δ_θ={delta_theta:.3f} "
+                f"θ=[{env._v7curr_theta_lo:.2f},{env._v7curr_theta_hi:.2f}] "
+                f"ema_p={env._v7curr_ema_p:.3f} "
+                f"confirm={env._v7curr_confirm_count}/{confirm_iters} "
+                f"(step {env.common_step_counter})"
+            )
+
+            if env._v7curr_confirm_count >= confirm_iters:
+                env._v7curr_stage = 1
+                env._v7curr_confirm_count = 0
+                # Reset p-axis EMA to neutral for fresh p-axis start
+                env._v7curr_ema_p = sr_target
+                env._v7curr_prev_err_p = 0.0
+                print(
+                    f"[V7Curr] Stage 0→1 | θ fully open | "
+                    f"(step {env.common_step_counter})"
+                )
+
+        elif env._v7curr_stage == 1:
+            # Apply p-axis PD
+            env._v7curr_p_hi = float(min(p_max, max(p_mid, env._v7curr_p_hi + delta_p * p_scale)))
+            env._v7curr_p_lo = float(max(p_min, min(p_mid, env._v7curr_p_lo - delta_p * p_scale)))
+            _apply_p(env, env._v7curr_p_lo, env._v7curr_p_hi)
+
+            p_full = (
+                env._v7curr_p_lo <= p_min + 0.1
+                and env._v7curr_p_hi >= p_max - 0.1
+            )
+            if p_full and env._v7curr_ema_p >= sr_target:
+                env._v7curr_confirm_count += 1
+            else:
+                env._v7curr_confirm_count = 0
+
+            print(
+                f"[V7Curr] S1/p | ema_p={env._v7curr_ema_p:.3f} "
+                f"δ_p={delta_p:.3f} "
+                f"p=[{env._v7curr_p_lo:.1f},{env._v7curr_p_hi:.1f}] "
+                f"ema_θ={env._v7curr_ema_theta:.3f} "
+                f"confirm={env._v7curr_confirm_count}/{confirm_iters} "
+                f"(step {env.common_step_counter})"
+            )
+
+            if env._v7curr_confirm_count >= confirm_iters:
+                env._v7curr_stage = 2
+                env._v7curr_confirm_count = 0
+                print(
+                    f"[V7Curr] Stage 1→2 | p fully open | terminal "
+                    f"(step {env.common_step_counter})"
+                )
+
+        # Reset iter accumulators
+        env._v7curr_window_done = 0
+        env._v7curr_window_success = 0
+        env._v7curr_last_eval_step = env.common_step_counter
+
+    # v7 never advances arm-init mixing; canonical pct stays 0.
+    env._curr_dataset_pct = 0.0
+    _v7_log(env, theta_min, p_mid)
+    return torch.tensor(float(env._v7curr_stage), device=env.device)
 
 
-def _v6_apply_p(env: "ManagerBasedRLEnv", lo: float, hi: float) -> None:
-    cfg = env.event_manager.get_term_cfg("reset_p_des")
-    cfg.params["p_min"] = lo
-    cfg.params["p_max"] = hi
+def _v7_log(env: "ManagerBasedRLEnv", theta_min: float, p_mid: float) -> None:
+    """Write v7 curriculum scalars to env.extras['log'] for TensorBoard."""
+    if "log" not in env.extras:
+        env.extras["log"] = {}
+    env.extras["log"]["Curriculum/stage"]           = float(getattr(env, "_v7curr_stage",       0))
+    env.extras["log"]["Curriculum/theta_lo"]        = float(getattr(env, "_v7curr_theta_lo",    theta_min))
+    env.extras["log"]["Curriculum/theta_hi"]        = float(getattr(env, "_v7curr_theta_hi",    theta_min))
+    env.extras["log"]["Curriculum/p_lo"]            = float(getattr(env, "_v7curr_p_lo",        p_mid))
+    env.extras["log"]["Curriculum/p_hi"]            = float(getattr(env, "_v7curr_p_hi",        p_mid))
+    env.extras["log"]["Curriculum/ema_sr_theta"]    = float(getattr(env, "_v7curr_ema_theta",   0.0))
+    env.extras["log"]["Curriculum/ema_sr_p"]        = float(getattr(env, "_v7curr_ema_p",       0.0))
+    env.extras["log"]["Curriculum/delta_theta"]     = float(getattr(env, "_v7curr_delta_theta", 0.0))
+    env.extras["log"]["Curriculum/delta_p"]         = float(getattr(env, "_v7curr_delta_p",     0.0))
+    env.extras["log"]["Curriculum/confirm"]         = float(getattr(env, "_v7curr_confirm_count", 0))

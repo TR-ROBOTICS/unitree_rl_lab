@@ -70,9 +70,9 @@ class TestTaskRegistration:
         assert "isaaclab.envs:ManagerBasedRLEnv" in stdout
 
     def test_config_entry_point_correct(self):
-        """Config entry point must reference ValveTurnEnvCfg."""
+        """Config entry point must reference the v0 preset factory (ADR 0009 item 5)."""
         stdout, _, _ = _run_list_envs()
-        assert "ValveTurnEnvCfg" in stdout
+        assert "valve.presets:turn_v0" in stdout
 
     def test_gym_register_importable(self):
         """Direct import of dof29 __init__ must register task in gymnasium."""

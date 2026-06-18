@@ -3,6 +3,10 @@
 #include "FSM/State_FixStand.h"
 #include "FSM/State_RLBase.h"
 #include "State_Mimic.h"
+#include "State_ValveTurn.h"
+
+#include <unitree/robot/channel/channel_publisher.hpp>
+#include <unitree/idl/ros2/Point_.hpp>
 
 std::unique_ptr<LowCmd_t> FSMState::lowcmd = nullptr;
 std::shared_ptr<LowState_t> FSMState::lowstate = nullptr;
@@ -50,10 +54,30 @@ int main(int argc, char** argv)
 
     std::cout << "Press [L2 + Up] to enter FixStand mode.\n";
     std::cout << "And then press [R1 + X] to start controlling the robot.\n";
+    std::cout << "W / S — raise / lower p_des by 5 PSI\n";
 
+    // Publisher for live p_des updates — valve_pressure_node.py relays to controller.
+    constexpr float P_DES_STEP = 5.0f, P_MIN = 15.0f, P_MAX = 200.0f;
+    float p_des = 100.0f;
+    auto p_des_pub = std::make_shared<unitree::robot::ChannelPublisher<geometry_msgs::msg::dds_::Point_>>("rt/valve/pressure_des_cmd");
+    p_des_pub->InitChannel();
+
+    geometry_msgs::msg::dds_::Point_ p_des_msg;
+    p_des_msg.y(0.0); p_des_msg.z(0.0);
+
+    std::string last_key = "";
     while (true)
     {
-        sleep(1);
+        usleep(90000);  // slightly above keyboard thread's 80ms read window
+        auto k = FSMState::keyboard->key();
+        if (k == last_key || k.empty()) { last_key = k; continue; }
+        last_key = k;
+        if (k == "w")      p_des = std::min(P_MAX, p_des + P_DES_STEP);
+        else if (k == "s") p_des = std::max(P_MIN, p_des - P_DES_STEP);
+        else continue;
+        p_des_msg.x(p_des);
+        p_des_pub->Write(p_des_msg);
+        std::cout << "\r[p_des] " << p_des << " PSI    " << std::flush;
     }
     
     return 0;

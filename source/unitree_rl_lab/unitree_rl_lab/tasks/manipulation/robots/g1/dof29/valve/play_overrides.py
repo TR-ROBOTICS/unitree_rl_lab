@@ -6,10 +6,11 @@ Usage — set VALVE_P_DES before running play.py to fix p_des for every episode 
     VALVE_P_DES=107 python scripts/rsl_rl/play.py --task Unitree-G1-29dof-ValveTurn-v4 ...
     VALVE_P_DES=170 python scripts/rsl_rl/play.py --task Unitree-G1-29dof-ValveTurn-v4 ...
 
-If VALVE_P_DES is not set: p_des remains random (as trained). Only affects v2+ envs
-(v0/v1 have p_des baked into obs/reward params — not controllable via event override).
+If VALVE_P_DES is not set: p_des remains as trained (random for v2+, fixed 107 for
+v0/v1). All turn configs now carry a reset_p_des event writing env.p_des_buf, so
+apply_play_p_des can override the target for any of them.
 
-Applies to: ValveTurnPlayEnvCfgV2, V3, V4, V4A, V4AE.
+Applies to play configs that call apply_play_p_des (V2, V3, V4, V4A, V4AE, V5, V6, V6b).
 """
 
 import os

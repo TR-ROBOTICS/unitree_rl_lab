@@ -283,24 +283,127 @@ def reset_arm_from_dataset(
     asset.write_data_to_sim()
 
 
-def reset_arm_v5_mixed(
+def reset_vision_zoh_state(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor | None,
+    vision_hz_range: tuple[float, float],
+    latency_steps: int,
+) -> None:
+    """Reset per-env ZOH vision state at episode start.
+
+    Samples a per-env vision update interval (in policy steps) from
+    ``vision_hz_range`` and reinitialises the latency pipe with the current
+    ground-truth p_now.  Must run AFTER ``reset_valve_angle`` so that the seeded
+    pressure value reflects the new θ_init.
+
+    Triggered as a ``mode="reset"`` EventTerm when VisionDRCfg.enabled=True.
+    When disabled, this event is absent — all existing paths are byte-identical.
+
+    Args:
+        vision_hz_range:  (hz_lo, hz_hi) — per-env vision update rate sampled
+                          uniformly (Hz).  Policy runs at 50 Hz; interval =
+                          round(50 / sampled_hz), clamped to [1, 50].
+                          Use (hz_lo, hz_lo) for a fixed rate.
+        latency_steps:    Latency pipe depth (policy steps).  Must match the value
+                          passed to valve_pressure_now_zoh obs term.
+    """
+    from . import pressure as _pressure
+    from .observations import _vzoh_lazy_init
+
+    n = env.num_envs
+    dev = env.device
+    pipe_depth = max(1, latency_steps + 1)
+
+    if env_ids is None:
+        env_ids = torch.arange(n, device=dev)
+
+    # Ensure buffers exist (may be first call before any lazy init in obs)
+    if not hasattr(env, "_vzoh_held") or env._vzoh_held.shape[0] != n:
+        _vzoh_lazy_init(env, n, dev, pipe_depth)
+
+    # Sample per-env vision Hz then convert to policy-step intervals
+    hz_lo, hz_hi = vision_hz_range
+    if hz_lo == hz_hi:
+        hz = torch.full((len(env_ids),), hz_lo, dtype=torch.float32, device=dev)
+    else:
+        hz = torch.rand(len(env_ids), device=dev) * (hz_hi - hz_lo) + hz_lo
+
+    # Policy runs at 50 Hz; clamp interval to [1, 50]
+    _POLICY_HZ: float = 50.0
+    intervals = torch.clamp(torch.round(_POLICY_HZ / hz).to(torch.int32), 1, 50)
+    env._vzoh_interval[env_ids] = intervals
+
+    # Seed pipe with fresh p_now for the new episode (after valve angle reset)
+    p_now = _pressure.p_now(env)  # (num_envs,)
+    env._vzoh_pipe[env_ids] = p_now[env_ids].unsqueeze(-1).expand(len(env_ids), pipe_depth).contiguous()
+
+    # Reset counter so the first ZOH update fires after one full interval
+    env._vzoh_counter[env_ids] = 0
+
+
+def reset_arm_pregrasp(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg,
+    pregrasp_pose: dict[str, float],
+    enabled: bool = True,
+) -> None:
+    """Reset arm joints to the canonical pre-grasp pose near the valve rim.
+
+    v7 feature: when ``enabled=True`` (default), overrides whatever arm pose the
+    USD init_state or ``reset_scene_to_default`` would produce and writes the
+    tuned PREGRASP_ARM_POSE to both joint state and position-target. This shrinks
+    the exploration problem — policy starts with hands already in a ready-to-grip
+    configuration at the valve rim.
+
+    When ``enabled=False`` the function is a no-op; the USD init_state pose is
+    retained (same behaviour as v0–v4 non-curriculum arm reset). Toggle via the
+    EventTerm params dict to ablate the pre-grasp init hypothesis.
+
+    Pre-grasp joint targets (tuned IsaacSim 2026-05-15, wheel VERTICAL, spins world-X):
+        shoulder_pitch: −0.7610 rad  (both sides, symmetric)
+        shoulder_roll:  ±0.1937 rad  (outward, left positive / right negative)
+        shoulder_yaw:   ∓0.1239/+0.1257 rad  (slight external rotation)
+        elbow:          +0.4869 / +0.5236 rad  (flexed)
+        wrist_roll:     +0.3787 / −0.4712 rad  (pronation, asymmetric)
+        wrist_pitch/yaw: 0.0 rad  (neutral)
+
+    The canonical PREGRASP_ARM_POSE dict lives in valve/presets.py. EventTerm
+    params should pass it via ``pregrasp_pose=PREGRASP_ARM_POSE``.
+
+    Args:
+        asset_cfg:     SceneEntityCfg targeting robot, arm joint_names pattern.
+        pregrasp_pose: ``{joint_name_regex: value_rad}`` — exact same format as
+                       ``reset_joints_to_fixed_pose``.  Use PREGRASP_ARM_POSE from
+                       valve/presets.py.
+        enabled:       Master toggle.  False = no-op (USD init_state kept).
+                       Set to False in the EventTerm params dict to ablate.
+    """
+    if not enabled:
+        return
+    reset_joints_to_fixed_pose(env, env_ids, asset_cfg, pregrasp_pose)
+
+
+def reset_arm_mixed(
     env: ManagerBasedRLEnv,
     env_ids: torch.Tensor | None,
     asset_cfg: SceneEntityCfg,
     dataset_path: str,
     fallback_pose: dict[str, float],
 ) -> None:
-    """v5 arm init: Bernoulli mix of pre-grip vs dataset based on curriculum progress.
+    """Curriculum-mixed arm init: per-env Bernoulli draw between pre-grip and dataset.
 
-    Reads env._v5curr_dataset_pct (float 0.0→1.0, set by turn_smooth_curriculum_v5).
+    Reads the canonical mixing fraction ``env._curr_dataset_pct`` (float 0.0→1.0),
+    which both ``turn_smooth_curriculum_v5`` (step-function) and
+    ``turn_pd_curriculum_v6`` (PD) keep synced from their internal stage state.
     Each env in env_ids independently draws Bernoulli(dataset_pct):
       True  → sample from reach dataset (same as reset_arm_from_dataset)
-      False → use fallback_pose (same as pre-grip)
+      False → use fallback_pose (pre-grip pose)
 
-    When dataset_pct=0.0 (stage 0): all pre-grip — identical to v2 init.
-    When dataset_pct=1.0 (stage 2): all dataset — identical to v3+ init.
+    When dataset_pct=0.0: all pre-grip — identical to v2 init.
+    When dataset_pct=1.0: all dataset — identical to v3+ init.
     """
-    dataset_pct: float = getattr(env, "_v5curr_dataset_pct", 0.0)
+    dataset_pct: float = getattr(env, "_curr_dataset_pct", 0.0)
 
     if env_ids is None:
         asset: Articulation = env.scene[asset_cfg.name]
@@ -314,41 +417,6 @@ def reset_arm_v5_mixed(
         return
 
     # Split env_ids by Bernoulli draw
-    mask = torch.rand(len(env_ids), device=env.device) < dataset_pct
-    ids_dataset = env_ids[mask]
-    ids_fallback = env_ids[~mask]
-
-    if len(ids_dataset) > 0:
-        reset_arm_from_dataset(env, ids_dataset, asset_cfg, dataset_path, fallback_pose)
-    if len(ids_fallback) > 0:
-        reset_joints_to_fixed_pose(env, ids_fallback, asset_cfg, fallback_pose)
-
-
-def reset_arm_v6_mixed(
-    env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor | None,
-    asset_cfg: SceneEntityCfg,
-    dataset_path: str,
-    fallback_pose: dict[str, float],
-) -> None:
-    """v6 arm init: Bernoulli mix of pre-grip vs dataset based on v6 curriculum progress.
-
-    Identical to reset_arm_v5_mixed but reads env._v6curr_dataset_pct
-    (set by turn_pd_curriculum_v6) instead of env._v5curr_dataset_pct.
-    """
-    dataset_pct: float = getattr(env, "_v6curr_dataset_pct", 0.0)
-
-    if env_ids is None:
-        asset: Articulation = env.scene[asset_cfg.name]
-        env_ids = asset._ALL_INDICES
-
-    if dataset_pct <= 0.0:
-        reset_joints_to_fixed_pose(env, env_ids, asset_cfg, fallback_pose)
-        return
-    if dataset_pct >= 1.0:
-        reset_arm_from_dataset(env, env_ids, asset_cfg, dataset_path, fallback_pose)
-        return
-
     mask = torch.rand(len(env_ids), device=env.device) < dataset_pct
     ids_dataset = env_ids[mask]
     ids_fallback = env_ids[~mask]

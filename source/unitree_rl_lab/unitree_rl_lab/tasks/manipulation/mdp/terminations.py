@@ -37,43 +37,35 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
 
+from . import pressure
+
 
 def pressure_success_hold(
     env: ManagerBasedRLEnv,
-    p_des: float,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    eps_psi: float,
     hold_steps: int,
 ) -> torch.Tensor:
-    """Terminate (success) when |p_now − p_des| < eps_psi for hold_steps consecutive steps.
+    """Terminate (success) when |p_now − p_des| < EPS_SIM for hold_steps consecutive steps.
 
     PRD user story 20: K=10 vision-frame increments × 5 policy steps = 50 steps = 1 s.
     CONTEXT.md §Success: ε_sim ≈ 1% of span (~1.85 PSI).
 
-    Counter is per-env and resets when the condition is not met or on episode start.
-    DoneTerm must use time_out=False — success terminal; RSL-RL bootstraps with 0
-    (not critic value) for non-timeout endings.
+    p_now from the firmware-locked g(θ) model; p_des per-env from env.p_des_buf;
+    tolerance EPS_SIM from the pressure model. Counter is per-env and resets when
+    the condition is not met or on episode start. DoneTerm must use time_out=False
+    — success terminal; RSL-RL bootstraps with 0 (not critic value) for non-timeout
+    endings.
 
     Args:
-        p_des:      target pressure (PSI).
-        pressure_a: g(θ) slope (firmware-locked).
-        pressure_b: g(θ) intercept (firmware-locked).
-        p_min / p_max: clamp bounds (PSI).
-        eps_psi:    convergence tolerance (PSI). ε_sim = 1.85 PSI (~1% span).
         hold_steps: consecutive steps required inside tolerance (50 = 1 s @50 Hz).
 
     Returns:
         Bool [num_envs]: True where hold counter has reached hold_steps.
     """
-    valve: Articulation = env.scene["valve_rig"]
-    theta = valve.data.joint_pos[:, 0]
-    theta = torch.nan_to_num(theta, nan=0.0)
-    p_now = torch.clamp(pressure_a * theta + pressure_b, p_min, p_max)
+    p_des = pressure.p_des(env)
+    if p_des is None:
+        return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
-    within_tol = torch.abs(p_now - p_des) < eps_psi  # (num_envs,) bool
+    within_tol = torch.abs(pressure.p_now(env) - p_des) < pressure.EPS_SIM  # (num_envs,) bool
 
     # Retrieve or initialise counter
     counter = getattr(env, "_success_hold_counter", None)
@@ -86,40 +78,6 @@ def pressure_success_hold(
     counter = torch.where(just_reset, torch.zeros_like(counter), counter)
 
     # Increment where within tolerance, reset where outside
-    counter = torch.where(within_tol, counter + 1, torch.zeros_like(counter))
-    env._success_hold_counter = counter
-
-    return counter >= hold_steps
-
-
-def pressure_success_hold_random(
-    env: ManagerBasedRLEnv,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    eps_psi: float,
-    hold_steps: int,
-) -> torch.Tensor:
-    """pressure_success_hold using per-env p_des from env.p_des_buf."""
-    p_des = getattr(env, "p_des_buf", None)
-    if p_des is None:
-        return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-
-    valve: Articulation = env.scene["valve_rig"]
-    theta = valve.data.joint_pos[:, 0]
-    theta = torch.nan_to_num(theta, nan=0.0)
-    p_now = torch.clamp(pressure_a * theta + pressure_b, p_min, p_max)
-
-    within_tol = torch.abs(p_now - p_des) < eps_psi
-
-    counter = getattr(env, "_success_hold_counter", None)
-    if counter is None or counter.shape[0] != env.num_envs:
-        counter = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
-        env._success_hold_counter = counter
-
-    just_reset = env.episode_length_buf <= 1
-    counter = torch.where(just_reset, torch.zeros_like(counter), counter)
     counter = torch.where(within_tol, counter + 1, torch.zeros_like(counter))
     env._success_hold_counter = counter
 

@@ -1,6 +1,6 @@
 """Shared constants, scene, actions, and base events for valve task configs.
 
-Imported by reach_env_cfg.py and turn_env_cfg.py.
+Imported by reach_env_cfg.py and presets.py (turn configs).
 g(θ) coefficients are firmware-locked — no DR.  CONTEXT.md §g(θ).
 """
 
@@ -22,17 +22,19 @@ from isaaclab.utils import configclass
 import unitree_rl_lab.tasks.manipulation.mdp as mdp
 
 # ---------------------------------------------------------------------------
-# Constants — g(θ) firmware mapping (firmware-locked; no DR on these values)
-# CONTEXT.md §g(θ): p_now = a·θ + b, clamp [15, 200] PSI
+# Constants — g(θ) firmware mapping (firmware-locked; no DR on these values).
+# CONTEXT.md §g(θ): p_now = a·θ + b, clamp [15, 200] PSI.
+# Single source of truth is mdp/pressure.py; re-exported here so configs that
+# reference them (curriculum anchors, configclass fields) keep a stable path.
 # ---------------------------------------------------------------------------
-_G_THETA_A: float = 4.527    # PSI/rad
-_G_THETA_B: float = -27.66   # PSI
-_P_SPAN: float = 185.0        # PSI  (200 − 15)
-_P_MIN: float = 15.0          # PSI
-_P_MAX: float = 200.0         # PSI
-_THETA_MIN: float = 9.42      # rad  (1.5 rev)
-_THETA_MAX: float = 50.27     # rad  (8 rev)
-_EPS_SIM: float = 1.85        # PSI  (~1% of span)
+_G_THETA_A: float = mdp.pressure.A        # PSI/rad
+_G_THETA_B: float = mdp.pressure.B        # PSI
+_P_SPAN: float = mdp.pressure.P_SPAN      # PSI  (200 − 15)
+_P_MIN: float = mdp.pressure.P_MIN        # PSI
+_P_MAX: float = mdp.pressure.P_MAX        # PSI
+_THETA_MIN: float = mdp.pressure.THETA_MIN  # rad  (1.5 rev)
+_THETA_MAX: float = mdp.pressure.THETA_MAX  # rad  (8 rev)
+_EPS_SIM: float = mdp.pressure.EPS_SIM    # PSI  (~1% of span)
 
 # ---------------------------------------------------------------------------
 # Reach geometry — FK targets relative to wheel hub COM in world frame.
@@ -117,6 +119,13 @@ _FINGER_GRIP: dict[str, float] = {
 _ASSETS_DIR = pathlib.Path(__file__).parents[6] / "assets"
 _VALVE_RIG_USD: str = str(_ASSETS_DIR / "valve_rig_collision.usda")
 _INSPIRE_USD: str = str(_ASSETS_DIR / "usd" / "g1_inspire_arm_collisions.usda")
+# Capsule-ablation override variants (sim2sim arm-capsule isolation experiment).
+# Both keep finger CCD + enabledSelfCollisions=True; differ only in arm colliders:
+#   palmcaps = palm sphere only (drop wrist/elbow/shoulder capsules)
+#   nocaps   = no arm colliders at all
+# Wired per-preset via TurnSpec.inspire_usd; default _INSPIRE_USD (full caps) unchanged.
+_INSPIRE_USD_PALMCAPS: str = str(_ASSETS_DIR / "usd" / "g1_inspire_arm_collisions_palmcaps.usda")
+_INSPIRE_USD_NOCAPS: str = str(_ASSETS_DIR / "usd" / "g1_inspire_arm_collisions_nocaps.usda")
 
 
 # ---------------------------------------------------------------------------

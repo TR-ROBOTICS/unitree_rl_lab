@@ -1,5 +1,11 @@
 FSM:
   _: # enabled fsms
+    # NOTE: CtrlFSM::start() boots into the FIRST entry (states[0]). ValveTurn is
+    # listed first so the controller auto-enters it — no gamepad needed (sim2sim
+    # has no WirelessController). Passive stays enabled as the timeout target.
+    ValveTurn:
+      id: 4
+      type: ValveTurn
     Passive:
       id: 1
     FixStand:
@@ -33,9 +39,10 @@ FSM:
       3,3,3,3,3,3,3,  
     ]
   FixStand:
-    transitions: 
+    transitions:
       Passive: LT + B.on_pressed
       Velocity: RB + X.on_pressed
+      ValveTurn: RB + Y.on_pressed
     kp: [
       100., 100., 100., 150., 40., 40.,
       100., 100., 100., 150., 40., 40.,
@@ -86,4 +93,11 @@ FSM:
     policy_dir: config/policy/mimic/gangnam_style/
     time_start: 5.2
     time_end: 25.5
+
+  ValveTurn:
+    transitions:
+      Passive: LT + B.on_pressed
+      FixStand: RB + X.on_pressed
+    policy_dir: config/policy/valve_turn/v7
+    p_des: 100.0  # target pressure (PSI)
 

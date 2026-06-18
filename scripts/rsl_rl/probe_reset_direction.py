@@ -57,6 +57,7 @@ importlib.import_module("isaaclab_tasks")          # registers isaaclab tasks
 importlib.import_module("unitree_rl_lab.tasks")    # registers Unitree-* gym ids
 
 from unitree_rl_lab.utils.parser_cfg import parse_env_cfg
+from unitree_rl_lab.tasks.manipulation.mdp import pressure
 
 
 def main() -> int:
@@ -75,11 +76,11 @@ def main() -> int:
     )
     env_cfg.scene.num_envs = args_cli.num_envs
 
-    # g(θ) coefficients + θ bounds are explicit configclass fields (firmware-locked).
-    a = float(env_cfg.pressure_a)
-    b = float(env_cfg.pressure_b)
-    theta_min = float(env_cfg.theta_min)
-    theta_max = float(env_cfg.theta_max)
+    # g(θ) coefficients + θ bounds: canonical firmware-locked constants (mdp.pressure).
+    a = float(pressure.A)
+    b = float(pressure.B)
+    theta_min = float(pressure.THETA_MIN)
+    theta_max = float(pressure.THETA_MAX)
     p_des_lo, p_des_hi = (float(x) for x in env_cfg.p_des_range)
 
     env = gym.make(args_cli.task, cfg=env_cfg)

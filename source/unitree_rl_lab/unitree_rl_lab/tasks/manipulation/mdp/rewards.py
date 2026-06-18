@@ -14,66 +14,32 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply
 
-_THETA_MAX_FALLBACK: float = 50.27  # rad — nan_to_num guard
-
-
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
-def _get_wheel_angle(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Wheel angle θ (rad) for every env. Shape: (num_envs,)."""
-    valve: Articulation = env.scene["valve_rig"]
-    theta = valve.data.joint_pos[:, 0]
-    return torch.nan_to_num(theta, nan=0.0, posinf=_THETA_MAX_FALLBACK, neginf=0.0)
-
-
-def _get_wheel_vel(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Wheel angular velocity ω (rad/s). Shape: (num_envs,)."""
-    valve: Articulation = env.scene["valve_rig"]
-    omega = valve.data.joint_vel[:, 0]
-    return torch.nan_to_num(omega, nan=0.0, posinf=0.0, neginf=0.0)
+from . import pressure
 
 
 # ---------------------------------------------------------------------------
 # Task-specific reward terms
+#
+# All pressure terms read the firmware-locked g(θ) model + the per-env target
+# from `pressure` (see mdp/pressure.py) — no firmware constants in signatures,
+# no scalar/buffer fork. `p_des` is always `env.p_des_buf`, written each reset.
 # ---------------------------------------------------------------------------
 
-def pressure_error(
-    env: ManagerBasedRLEnv,
-    p_des: float,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    p_span: float,
-) -> torch.Tensor:
+def pressure_error(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Dense reward: −|p_now − p_des| / p_span ∈ [−1, 0].
 
-    Args:
-        p_des:      target pressure (PSI). Fixed in Stage 1.
-        pressure_a: g(θ) slope (PSI/rad). Firmware-locked.
-        pressure_b: g(θ) intercept (PSI). Firmware-locked.
-        p_min / p_max: clamp bounds (PSI).
-        p_span:     p_max − p_min (PSI).
+    p_now from the firmware-locked g(θ) model; p_des per-env from env.p_des_buf.
     """
-    theta = _get_wheel_angle(env)
-    p_now = torch.clamp(pressure_a * theta + pressure_b, p_min, p_max)
-    return -torch.abs(p_now - p_des) / p_span
+    p_des = pressure.p_des(env)
+    if p_des is None:
+        return torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
+    return -torch.abs(pressure.p_now(env) - p_des) / pressure.P_SPAN
 
 
-def pressure_progress(
-    env: ManagerBasedRLEnv,
-    p_des: float,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    p_span: float,
-) -> torch.Tensor:
+def pressure_progress(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Potential-based progress on θ-distance to θ_des. Scale: ·a/p_span.
 
-    Primary Stage-1 signal. Uses ONLY θ (firmware-locked, sign-safe) — NO
+    Primary turn signal. Uses ONLY θ (firmware-locked, sign-safe) — NO
     joint_vel (valve spawn rot vs joint axis makes joint_vel sign-inverted).
 
     On θ-distance, NOT clamped p_now: in the pressure clamp zone (θ<θ_min →
@@ -86,11 +52,18 @@ def pressure_progress(
     Telescoping: Σ r_t = (|θ_des−θ_0|−|θ_des−θ_T|)·a/p_span — net progress,
     path-independent. Closed wobble sums to 0 → jitter-proof (signed, no clamp).
     Reset-safe: 0 on the first step of each episode.
+
+    Caches the result on env._pressure_progress_cache for same-step reuse by
+    bimanual_progress_reward / single_hand_turning_penalty — those MUST NOT call
+    this again (it is stateful: _valve_prev_abs_err is consumed → second call 0).
     """
-    theta = _get_wheel_angle(env)
-    theta_des = (p_des - pressure_b) / pressure_a
+    p_des = pressure.p_des(env)
+    if p_des is None:
+        return torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
+    theta = pressure.wheel_angle(env)
+    theta_des = pressure.theta_des(p_des)
     # PSI-equivalent θ error, but UNCLAMPED so gradient survives the p floor.
-    err = torch.abs(theta_des - theta) * pressure_a
+    err = torch.abs(theta_des - theta) * pressure.A
 
     prev = getattr(env, "_valve_prev_abs_err", None)
     if prev is None or prev.shape != err.shape:
@@ -99,73 +72,15 @@ def pressure_progress(
 
     fresh = env.episode_length_buf <= 1  # just reset → no progress yet
     progress = torch.where(
-        fresh, torch.zeros_like(err), (prev - err) / p_span
+        fresh, torch.zeros_like(err), (prev - err) / pressure.P_SPAN
     )
     env._valve_prev_abs_err = err.detach().clone()
-    return torch.nan_to_num(progress, nan=0.0, posinf=0.0, neginf=0.0)
-
-
-def pressure_error_random(
-    env: ManagerBasedRLEnv,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    p_span: float,
-) -> torch.Tensor:
-    """pressure_error using per-env p_des from env.p_des_buf."""
-    p_des = getattr(env, "p_des_buf", None)
-    if p_des is None:
-        return torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
-    theta = _get_wheel_angle(env)
-    p_now = torch.clamp(pressure_a * theta + pressure_b, p_min, p_max)
-    return -torch.abs(p_now - p_des) / p_span
-
-
-def pressure_progress_random(
-    env: ManagerBasedRLEnv,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    p_span: float,
-) -> torch.Tensor:
-    """pressure_progress using per-env p_des from env.p_des_buf.
-
-    Same θ-distance potential as pressure_progress — telescoping, jitter-proof,
-    reset-safe. Each env tracks its own θ_des = (p_des_buf - b) / a.
-    """
-    p_des = getattr(env, "p_des_buf", None)
-    if p_des is None:
-        return torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
-    theta = _get_wheel_angle(env)
-    theta_des = (p_des - pressure_b) / pressure_a
-    err = torch.abs(theta_des - theta) * pressure_a
-
-    prev = getattr(env, "_valve_prev_abs_err", None)
-    if prev is None or prev.shape != err.shape:
-        prev = err.clone()
-        env._valve_prev_abs_err = prev
-
-    fresh = env.episode_length_buf <= 1
-    progress = torch.where(fresh, torch.zeros_like(err), (prev - err) / p_span)
-    env._valve_prev_abs_err = err.detach().clone()
     progress = torch.nan_to_num(progress, nan=0.0, posinf=0.0, neginf=0.0)
-    # Cache for same-step reuse by bimanual_progress_reward / single_hand_turning_penalty.
-    # Both depend on this value but MUST NOT call pressure_progress_random() again —
-    # _valve_prev_abs_err is already consumed; a second call returns 0.
     env._pressure_progress_cache = progress
     return progress
 
 
-def wheel_vel_toward_target(
-    env: ManagerBasedRLEnv,
-    p_des: float,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-) -> torch.Tensor:
+def wheel_vel_toward_target(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Reward wheel angular velocity in direction that reduces pressure error.
 
     CCW (positive ω) raises p_now → rewarded when p_now < p_des.
@@ -173,10 +88,12 @@ def wheel_vel_toward_target(
     Only correct-direction motion rewarded; wrong direction clipped to 0.
     Range: [0, ∞).
     """
-    theta = _get_wheel_angle(env)
-    p_now = torch.clamp(pressure_a * theta + pressure_b, p_min, p_max)
+    p_des = pressure.p_des(env)
+    if p_des is None:
+        return torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
+    p_now = pressure.p_now(env)
     error_sign = torch.sign(p_des - p_now)   # +1 need CCW, -1 need CW
-    omega = _get_wheel_vel(env)
+    omega = pressure.wheel_vel(env)
     # Clamp SYMMETRIC [-1.5, 1.5] rad/s (Run 11). Was [0, 1.5]: one-sided clamp
     # rectified contact jitter — backward half-cycle clamped to 0, not penalised
     # → vibration farmed reward with zero net rotation (wheel_vel 0.76 while
@@ -295,11 +212,6 @@ def rim_distance_reward(
 
 def bimanual_progress_reward(
     env: ManagerBasedRLEnv,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    p_span: float,
     valve_hub_cfg: SceneEntityCfg,
     left_hand_cfg: SceneEntityCfg,
     right_hand_cfg: SceneEntityCfg,
@@ -308,7 +220,7 @@ def bimanual_progress_reward(
     plane_offset: float,
     sigma: float,
 ) -> torch.Tensor:
-    """Bimanual turning incentive: pressure_progress_random × rim_proximity.
+    """Bimanual turning incentive: pressure_progress × rim_proximity.
 
     Multiplicative gate — zero unless BOTH conditions hold simultaneously:
       (1) valve is moving toward target   (pressure_progress > 0)
@@ -320,12 +232,11 @@ def bimanual_progress_reward(
     With this term: no turning → reward = 0 regardless of hand position.
 
     Two-hand turning bonus: ~2× pressure_progress when both hands at rim.
-    Use weight equal to pressure_progress_random weight (default 30.0).
+    Use weight equal to pressure_progress weight (default 30.0).
 
-    NOTE: reads from env._pressure_progress_cache (written by
-    pressure_progress_random each step). Must NOT call pressure_progress_random()
-    directly — that function is stateful (_valve_prev_abs_err); a second call
-    in the same step returns 0.
+    NOTE: reads from env._pressure_progress_cache (written by pressure_progress
+    each step). Must NOT call pressure_progress() directly — that function is
+    stateful (_valve_prev_abs_err); a second call in the same step returns 0.
     """
     progress = getattr(env, "_pressure_progress_cache",
                        torch.zeros(env.num_envs, device=env.device))
@@ -345,11 +256,6 @@ def bimanual_progress_reward(
 
 def single_hand_turning_penalty(
     env: ManagerBasedRLEnv,
-    pressure_a: float,
-    pressure_b: float,
-    p_min: float,
-    p_max: float,
-    p_span: float,
     valve_hub_cfg: SceneEntityCfg,
     left_hand_cfg: SceneEntityCfg,
     right_hand_cfg: SceneEntityCfg,
@@ -369,17 +275,16 @@ def single_hand_turning_penalty(
         to stop turning to avoid the penalty (avoids zero-motion local min).
       - (1 − rim_bimanual): maximal when one hand is far from rim, zero when
         both hands are at rim simultaneously.
-      - Combined with bimanual_progress (bonus) and pressure_progress_random
+      - Combined with bimanual_progress (bonus) and pressure_progress
         (base), net reward ratio 2-hand:1-hand ≈ 2.3× at w=-15.0.
 
     rim_bimanual uses mode="max" (worst hand caps score) — same as
     bimanual_progress_reward, ensuring both hands must be near the rim to
     suppress the penalty.
 
-    NOTE: reads from env._pressure_progress_cache (written by
-    pressure_progress_random each step). Must NOT call pressure_progress_random()
-    directly — that function is stateful (_valve_prev_abs_err); a second call
-    in the same step returns 0.
+    NOTE: reads from env._pressure_progress_cache (written by pressure_progress
+    each step). Must NOT call pressure_progress() directly — that function is
+    stateful (_valve_prev_abs_err); a second call in the same step returns 0.
     """
     progress = getattr(env, "_pressure_progress_cache",
                        torch.zeros(env.num_envs, device=env.device))

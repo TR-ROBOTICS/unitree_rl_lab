@@ -15,12 +15,15 @@ endif()
 
 include_directories(
   /usr/include/eigen3
-  /usr/local/include/ddscxx # dds
-  /usr/local/include/iceoryx/v2.0.2 # dds
+  /opt/unitree_robotics/include/ddscxx # dds (sdk2 installed under /opt here)
+  /usr/local/include/iceoryx/v2.0.2 # dds (optional; absent on this host)
   include
   ${ONNXRUNTIME_DIR}/include
   ${PROJECT_SOURCE_DIR}/../../include/
+  /opt/unitree_robotics/include # unitree_sdk2 + dds_wrapper headers
 )
+
+link_directories(/opt/unitree_robotics/lib)
 
 link_libraries(
   unitree_sdk2 ddsc ddscxx rt pthread # dds

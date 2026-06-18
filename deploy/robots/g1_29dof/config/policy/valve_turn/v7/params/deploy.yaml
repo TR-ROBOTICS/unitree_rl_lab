@@ -1,0 +1,64 @@
+# Valve-turn sim2sim deploy config (v5_i, model_1100).
+#
+# Order of joint_ids_map / stiffness / damping / default_joint_pos is the Isaac
+# articulation order (first 29 of 53 joints = all actuated body+arm; the 24
+# Inspire finger joints are passive and absent from the G1 29-motor LowState).
+# joint_ids_map[deploy_idx] = G1 SDK motor index. This map is identical to
+# velocity/v0 (same Isaac joint ordering), verified via scripts/dump_valve_deploy.py.
+#
+# Contract: obs = joint_pos_rel(14) + joint_vel_rel(14) + p_now(1) + p_des(1) = 30;
+# action = 14 arm joints (JointPositionAction, scale 0.1, offset = pregrip).
+# Arm joint_ids [11,12,15,16,19,20,21,22,23,24,25,26,27,28] index the deploy order
+# and resolve (via joint_ids_map) to SDK motors [15,22,16,23,17,24,18,25,19,26,20,27,21,28].
+
+joint_ids_map: [0, 6, 12, 1, 7, 13, 2, 8, 14, 3, 9, 15, 22, 4, 10, 16, 23, 5, 11,
+  17, 24, 18, 25, 19, 26, 20, 27, 21, 28]
+step_dt: 0.02
+
+# kp/kd mirror the Isaac actuator groups (legs/waist 150-200/5, ankle 20/2,
+# shoulders 100/2, shoulder_yaw+elbow 50/2, wrist 40/2). NOTE: stiffness/damping
+# are indexed by SDK MOTOR index (enter() writes motor_cmd[i].kp = stiffness[i]),
+# NOT the Isaac/deploy order used by joint_ids_map/default_joint_pos. SDK order:
+# Lleg(hip_p,hip_r,hip_y,knee,ank_p,ank_r) Rleg waist(y,r,p) Larm(sh_p,sh_r,sh_y,
+# elbow,wr_roll,wr_pitch,wr_yaw) Rarm.
+stiffness: [200.0, 150.0, 150.0, 200.0, 20.0, 20.0, 200.0, 150.0, 150.0, 200.0, 20.0,
+  20.0, 200.0, 200.0, 200.0, 100.0, 100.0, 50.0, 50.0, 40.0, 40.0, 40.0, 100.0, 100.0,
+  50.0, 50.0, 40.0, 40.0, 40.0]
+damping: [5.0, 5.0, 5.0, 5.0, 2.0, 2.0, 5.0, 5.0, 5.0, 5.0, 2.0, 2.0, 5.0, 5.0, 5.0,
+  2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]
+
+# Crane-hang held pose (body) + pregrip (arms), Isaac order. Body joints are held
+# at these by PD; the 14 arm joints are driven by the policy (offset == these).
+default_joint_pos: [-0.1, -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, -0.761,
+  -0.761, -0.2, -0.2, 0.1937, -0.1937, 0.0, 0.0, -0.1239, 0.1257, 0.4869, 0.5236,
+  0.3787, -0.4712, 0.0, 0.0, 0.0, 0.0]
+
+actions:
+  JointPositionAction:
+    clip: null
+    joint_ids: [11, 12, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+    scale: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    offset: [-0.761, -0.761, 0.1937, -0.1937, -0.1239, 0.1257, 0.4869, 0.5236, 0.3787,
+      -0.4712, 0.0, 0.0, 0.0, 0.0]
+
+observations:
+  joint_pos_rel:
+    params:
+      asset_cfg:
+        joint_ids: [11, 12, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+    clip: [-10.0, 10.0]
+    scale: null
+  joint_vel_rel:
+    params:
+      asset_cfg:
+        joint_ids: [11, 12, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+    clip: [-20.0, 20.0]
+    scale: null
+  valve_pressure_now:
+    params: {}
+    clip: [0.0, 1.0]
+    scale: null
+  valve_pressure_des:
+    params: {}
+    clip: [0.0, 1.0]
+    scale: null

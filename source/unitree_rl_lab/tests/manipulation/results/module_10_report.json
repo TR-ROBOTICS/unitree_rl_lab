@@ -1,0 +1,357 @@
+{
+  "module": 10,
+  "title": "Module #10 test results",
+  "timestamp": "2026-06-13T14:29:28",
+  "exit_status": 0,
+  "summary": {
+    "total": 86,
+    "passed": 86,
+    "failed": 0
+  },
+  "results": {
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v0]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v1]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v2]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v3]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v4]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v4a]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v4ae]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v4ah]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v4aeh]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v5]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v6]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_env_builds[v6b]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v0]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v1]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v2]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v3]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v4]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v4a]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v4ae]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v4ah]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v4aeh]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v5]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v6]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_builds[v6b]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_pressure_fields": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v0]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v1]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v2]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v3]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v4]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v4a]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v4ae]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v4ah]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v4aeh]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v5]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v6]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_event_parity[v6b]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v0]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v1]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v2]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v3]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v4]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v4a]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v4ae]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v4ah]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v4aeh]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v5]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v6]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_reward_parity[v6b]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v0]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v1]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v2]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v3]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v4]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v4a]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v4ae]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v4ah]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v4aeh]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v5]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v6]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_curriculum_parity[v6b]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v0]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v1]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v2]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v3]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v4]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v4a]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v4ae]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v4ah]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v4aeh]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v5]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v6]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_action_obs_space[v6b]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v0]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v1]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v2]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v3]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v4]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v4a]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v4ae]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v4ah]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v4aeh]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v5]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v6]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_distribution[v6b]": {
+      "outcome": "passed",
+      "message": ""
+    },
+    "tests/manipulation/test_10_turn_presets.py::test_play_p_des_override": {
+      "outcome": "passed",
+      "message": ""
+    }
+  }
+}
