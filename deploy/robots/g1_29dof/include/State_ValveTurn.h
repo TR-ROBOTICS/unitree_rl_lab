@@ -51,6 +51,14 @@ private:
 
     std::thread policy_thread;
     bool policy_thread_running = false;
+
+    // ADR 0012 / sim2sim deadband — pressure hysteresis HOLD.
+    // Set by the constructor from config.yaml (defaults live there, not here).
+    float epsilon_enter_;  // enter HOLD when |err| < epsilon_enter_ (PSI)
+    float epsilon_exit_;   // exit  HOLD when |err| > epsilon_exit_  (PSI)
+    // Latch: true while pressure is within the hold band.
+    // Written and read only from the policy thread — no atomics needed.
+    bool in_hold_ = false;
 };
 
 REGISTER_FSM(State_ValveTurn)

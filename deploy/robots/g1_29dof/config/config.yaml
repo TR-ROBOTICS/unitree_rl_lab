@@ -98,6 +98,11 @@ FSM:
     transitions:
       Passive: LT + B.on_pressed
       FixStand: RB + X.on_pressed
-    policy_dir: config/policy/valve_turn/v7
-    p_des: 100.0  # target pressure (PSI)
+    policy_dir: config/policy/valve_turn/v7_palmcaps
+    p_des: 100.0         # target pressure (PSI)
+    # ADR 0012 / sim2sim deadband: hysteresis thresholds (PSI).
+    # HOLD is entered when |p_des - p_now| < epsilon_enter and exited when
+    # the error grows back above epsilon_exit (> epsilon_enter avoids chatter).
+    epsilon_enter: 2.0   # enter HOLD: err < 2 PSI
+    epsilon_exit:  4.0   # exit  HOLD: err > 4 PSI
 
