@@ -119,7 +119,7 @@ void State_ValveTurn::enter()
 
             if (!in_hold_ && err < epsilon_enter_) {
                 in_hold_ = true;
-                spdlog::warn("[ValveTurn] ENTER HOLD  err={:.2f} p_now={:.1f} p_des={:.1f} thr={:.1f} PSI",
+                spdlog::warn("[ValveTurn] ENTER HOLD  err={:.2f} p_now={:.1f} p_des={:.1f} thr={:.1f} PSI — returning to pregrasp",
                              err, p_now, p_des, epsilon_enter_);
             } else if (in_hold_ && err > epsilon_exit_) {
                 in_hold_ = false;
@@ -129,9 +129,14 @@ void State_ValveTurn::enter()
 
             if (!in_hold_) {
                 env->step();   // obs + ONNX inference + process_action
+            } else {
+                // HOLD: skip ONNX inference; drive arms to pregrasp (action = zeros).
+                // JointPositionAction: processed[i] = raw[i]*scale[i] + offset[i].
+                // With raw = 0, processed[i] = offset[i] = default_joint_pos arm slice.
+                // run() reads processed_actions() unmodified, so no other path changes.
+                const int action_dim = env->action_manager->total_action_dim();
+                env->action_manager->process_action(std::vector<float>(action_dim, 0.0f));
             }
-            // HOLD path: env->step() is skipped; run() keeps publishing the last
-            // processed_actions() so the hands maintain their grip on the valve.
             // Loop cadence is unchanged — sleep_until preserves step_dt = 0.02 s.
 
             std::this_thread::sleep_until(sleepTill);
